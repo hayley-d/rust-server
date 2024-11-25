@@ -23,6 +23,19 @@ fn main() -> Result<(), Error> {
 }
 
 fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
+    match handel_read(&mut stream) {
+        Ok(_) => (),
+        Err(e) => return Err(e),
+    }
+
+    match handel_response(stream) {
+        Ok(_) => (),
+        Err(e) => return Err(e),
+    }
+    return Ok(());
+}
+
+fn handel_read(mut stream: &TcpStream) -> Result<(), Error> {
     println!("New connection: {:?}", stream.peer_addr()?);
     // Create a byffer that is 4KB capacity
     let mut buffer = [0u8; 4096];
@@ -38,6 +51,10 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), Error> {
         }
     };
 
+    return Ok(());
+}
+
+fn handel_response(mut stream: TcpStream) -> Result<(), Error> {
     let response  = b"HTTP/1.1 200 OK\r\nContent-Type: text/html;charset=UTF-8\r\n\r\n<html><body>Hello World!</body></html>\r\n";
 
     match stream.write(response) {
