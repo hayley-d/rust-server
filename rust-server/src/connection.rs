@@ -105,53 +105,56 @@ pub mod connections {
     }
 
     pub async fn handle_connection(stream: &mut TcpStream) -> Result<(), ErrorType> {
-        let mut buffer = [0; 4096];
+        loop {
+            let mut buffer = [0; 4096];
 
-        let bytes_read: usize = match stream.read(&mut buffer).await {
-            Ok(n) => match n {
-                0 => return Ok(()),
-                _ => n,
-            },
-            Err(e) => {
-                let error: ErrorType =
-                    ErrorType::SocketError(String::from("Failed to read from socket"));
-                return Err(error);
+            let bytes_read: usize = match stream.read(&mut buffer).await {
+                Ok(n) => {
+                    if n == 0 {
+                        return Ok(());
+                    } else {
+                        n
+                    }
+                }
+                Err(e) => {
+                    let error: ErrorType =
+                        ErrorType::SocketError(String::from("Failed to read from socket"));
+                    return Err(error);
+                }
+            };
+
+            handle_request(&buffer[..bytes_read])?;
+
+            if buffer.starts_with(get_route("test")) {
+                format_response(
+                    "200 OK",
+                    fs::read_to_string("html/home.html").await.unwrap(),
+                    stream,
+                )
+                .await;
+            } else if buffer.starts_with(get_route("hayley")) {
+                thread::sleep(Duration::from_secs(5));
+                format_response(
+                    "200 OK",
+                    fs::read_to_string("html/index.html").await.unwrap(),
+                    stream,
+                )
+                .await;
+            } else {
+                format_response(
+                    "200 OK",
+                    fs::read_to_string("html/index.html").await.unwrap(),
+                    stream,
+                )
+                .await;
             }
-        };
-
-        handle_request(&buffer[..bytes_read])?;
-
-        //println!("{:?}", String::from_utf8(buffer[..bytes_read].to_vec()));
-
-        if buffer.starts_with(get_route("Home")) {
-            format_response(
-                "HTTP/1.1 200 OK",
-                fs::read_to_string("html/index.html").await.unwrap(),
-                stream,
-            )
-            .await;
-        } else if buffer.starts_with(get_route("hayley")) {
-            thread::sleep(Duration::from_secs(5));
-            format_response(
-                "HTTP/1.1 200 OK",
-                fs::read_to_string("html/index.html").await.unwrap(),
-                stream,
-            )
-            .await;
-        } else {
-            format_response(
-                "HTTP/1.1 200 OK",
-                fs::read_to_string("html/index.html").await.unwrap(),
-                stream,
-            )
-            .await;
         }
-        return Ok(());
     }
 
-    pub async fn format_response(status_line: &str, contents: String, stream: &mut TcpStream) {
+    pub async fn format_response(status_code: &str, contents: String, stream: &mut TcpStream) {
         let length: usize = contents.len();
-        let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+        let response =
+            format!("HTTP/1.1 {status_code}\r\nContent-Length: {length}\r\n\r\n{contents}");
         stream.write_all(response.as_bytes()).await.unwrap();
     }
 
@@ -159,6 +162,7 @@ pub mod connections {
         return match route {
             "Home" => b"GET / HTTP/1.1",
             "hayley" => b"GET /hayley HTTP/1.1",
+            "test" => b"GET /home HTTP/1.1",
             _ => b"GET / HTTP/1.1",
         };
     }
@@ -210,6 +214,7 @@ pub mod connections {
                 // If socket it accepted then return the associated handler
                 match self.listener.accept().await {
                     Ok((stream, addr)) => {
+                        println!("New connection from {}", addr);
                         return Ok((stream, addr));
                     }
                     Err(_) => {
@@ -223,6 +228,7 @@ pub mod connections {
                 }
 
                 // Exponential backoff to reduce contention
+                println!("Backingoff...");
                 time::sleep(Duration::from_millis(backoff as u64)).await;
                 backoff *= 2;
             }
@@ -240,19 +246,20 @@ pub mod connections {
                 }
             };
 
-            while msg != Message::Terminate {
-                handle_connection(&mut self.stream).await?;
-                if !self.shutdown_rx.is_empty() {
-                    let msg: Message = match self.shutdown_rx.recv().await {
-                        Ok(m) => m,
-                        Err(_) => {
-                            return Err(ErrorType::ConnectionError(String::from(
-                                "Unable to receive message from shutdown sender",
-                            )))
-                        }
-                    };
-                }
+            //while msg != Message::Terminate {
+            handle_connection(&mut self.stream).await?;
+            println!("Connection has been handled and ended");
+            if !self.shutdown_rx.is_empty() {
+                let msg: Message = match self.shutdown_rx.recv().await {
+                    Ok(m) => m,
+                    Err(_) => {
+                        return Err(ErrorType::ConnectionError(String::from(
+                            "Unable to receive message from shutdown sender",
+                        )))
+                    }
+                };
             }
+            //}
             return Ok(());
         }
     }
