@@ -1,34 +1,60 @@
-use tokio::sync::broadcast;
+use std::sync::Arc;
+use tokio::sync::{broadcast, Mutex};
 
-/// Listens for the server shutdown signal.
-///
+#[derive(Debug)]
+pub enum Message {
+    ServerRunning,
+    Terminate,
+}
 
 #[derive(Debug)]
 pub struct Shutdown {
-    /// true is the shutdown signal has been recieved
     is_shutdown: bool,
-    notify: broadcast::Receiver<()>,
+    shutdown_tx: Arc<Mutex<broadcast::Sender<Message>>>,
 }
 
 impl Shutdown {
-    /// creates a new shutdown struct with the provided broadcast::Reciever
-    pub fn new(notify: broadcast::Reciever<()>) -> Shutdown {
+    pub fn new(shutdown_tx: Arc<Mutex<broadcast::Sender<Message>>>) -> Shutdown {
         return Shutdown {
             is_shutdown: false,
-            notify,
+            shutdown_tx,
         };
     }
 
-    /// Returns true if the server has shutdown otherwise it will return false.
-    pub fn is_shudown(&self) -> bool {
+    pub fn is_shutdown(&self) -> bool {
         return self.is_shutdown;
     }
 
-    /// Receive the shutdown signal, wait if need be.
-    pub async fn receive_notice(&mut self) {
-        if !self.is_shutdown {
-            let _ = self.notify.recv().await();
-            self.is_shutdown = true;
+    pub async fn initiate_shutdown(&mut self) {
+        self.is_shutdown = true;
+        self.shutdown_tx
+            .lock()
+            .await
+            .send(Message::Terminate)
+            .unwrap();
+    }
+}
+
+impl Clone for Message {
+    fn clone(&self) -> Self {
+        match self {
+            Message::ServerRunning => Message::ServerRunning,
+            Message::Terminate => Message::Terminate,
+        }
+    }
+}
+
+impl PartialEq for Message {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Message::ServerRunning => match other {
+                Message::ServerRunning => true,
+                _ => false,
+            },
+            Message::Terminate => match other {
+                Message::Terminate => true,
+                _ => false,
+            },
         }
     }
 }

@@ -1,0 +1,2 @@
+[2024-11-28 22:49:13.282599347 UTC] Bad Request Error: { file: src/error.rs, line: 86 message: Missing request line }
+[2024-11-28 22:49:33.525502108 UTC] Bad Request Error: { file: src/error.rs, line: 86 message: Missing request line }
