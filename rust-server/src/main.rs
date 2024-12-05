@@ -1,8 +1,12 @@
 use rust_server::connection::{connections::*, my_socket::*};
 use rust_server::error::my_errors::*;
 use rust_server::shutdown::*;
+use socket2::SockAddr;
 use std::env;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::sync::{broadcast, Mutex, Semaphore};
 
 const DEFAULT_PORT: u16 = 7878;
@@ -32,6 +36,7 @@ async fn main() -> Result<(), ErrorType> {
         }
     };
 
+    // create a listener from the socket
     let listener = match get_listener(socket) {
         Ok(s) => s,
         Err(e) => {
@@ -40,9 +45,9 @@ async fn main() -> Result<(), ErrorType> {
         }
     };
 
+    // create a channel
     let (tx, _rx) = broadcast::channel(10);
     let tx = Arc::new(Mutex::new(tx));
-
     let mut shutdown = Shutdown::new(Arc::clone(&tx));
 
     // Graceful shutdown using signal handling
@@ -69,6 +74,82 @@ async fn main() -> Result<(), ErrorType> {
 
 async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorType> {
     let logger = Arc::new(Mutex::new(logger));
-    listener.run(Arc::clone(&logger)).await?;
-    return Ok(());
+    loop {
+        let logger = Arc::clone(&logger);
+        listener.run(logger.clone()).await?;
+        // Returns an error when the semaphore has been closed, since I do not close it
+        // unwrap should be safe
+        let permit = listener
+            .connection_limit
+            .clone()
+            .acquire_owned()
+            .await
+            .unwrap();
+
+        let (client, addr): (TcpStream, SocketAddr) = match listener.accept().await {
+            Ok((c, a)) => (c, a.into()),
+            Err(_) => {
+                return Err(ErrorType::SocketError(String::from(
+                    "Error connecting to client",
+                )))
+            }
+        };
+
+        let mut handler = ConnectionHandler {
+            stream: client,
+            addr,
+            shutdown_rx: listener.shutdown_tx.lock().await.subscribe(),
+        };
+
+        tokio::spawn(async move {
+            let logger = Arc::clone(&logger);
+            // create 4kb buffer
+            let mut buffer: [u8; 4096] = [0; 4096];
+
+            loop {
+                let _ = match handler.stream.read(&mut buffer).await {
+                    Ok(number_bytes) if number_bytes == 0 => return,
+                    Ok(number_bytes) => number_bytes,
+                    Err(_) => {
+                        let e = ErrorType::SocketError(String::from("Error connecting to client"));
+                        logger.lock().await.log_error(&e);
+                        return;
+                    }
+                };
+
+                handle_request(String::from_utf8(buffer.to_vec()).unwrap());
+
+                let response: String = String::new();
+
+                if let Err(_) = handler.stream.write_all(&response.into_bytes()).await {
+                    let e = ErrorType::SocketError(String::from("Error connecting to client"));
+                    logger.lock().await.log_error(&e);
+                    return;
+                }
+
+                if !handler.shutdown_rx.is_empty() {
+                    let msg: Message = match handler.shutdown_rx.recv().await {
+                        Ok(m) => m,
+                        Err(_) => {
+                            let e = ErrorType::ConnectionError(String::from(
+                                "Unable to receive message from shutdown sender",
+                            ));
+                            logger.lock().await.log_error(&e);
+                            return;
+                        }
+                    };
+
+                    if msg == Message::Terminate {
+                        break;
+                    }
+                }
+            }
+            println!("Permit dropped for :{:?}", permit);
+            drop(permit);
+        });
+    }
+}
+
+fn handle_request(request: String) {
+    todo!()
 }
