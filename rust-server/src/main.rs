@@ -1,7 +1,7 @@
 use rust_server::connection::connections::*;
 use rust_server::error::my_errors::*;
 use rust_server::request_validation::handle_request;
-use rust_server::{handle_get, my_socket::*, request::*, shutdown::*};
+use rust_server::{handle_response, my_socket::*, request::*, shutdown::*};
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -137,7 +137,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                     }
                 };
 
-                let response = handle_get(request).await;
+                let response = handle_response(request).await;
 
                 if let Err(_) = handler
                     .stream

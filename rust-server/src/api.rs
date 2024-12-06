@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::fs::{self, File};
 use tokio::io::AsyncReadExt;
 
-use crate::{ContentType, HttpCode, Protocol, Request, Response};
+use crate::{ContentType, HttpCode, HttpMethod, Protocol, Request, Response};
 
 async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     let metadata = fs::metadata(path).await.unwrap();
@@ -14,7 +14,17 @@ async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     return buffer;
 }
 
-pub async fn handle_get(request: Request) -> Response {
+pub async fn handle_response(request: Request) -> Response {
+    match request.method {
+        HttpMethod::GET => handle_get(request).await,
+        HttpMethod::POST => handle_post(request).await,
+        HttpMethod::PUT => handle_put(request).await,
+        HttpMethod::PATCH => handle_patch(request).await,
+        HttpMethod::DELETE => handle_delete(request).await,
+    }
+}
+
+async fn handle_get(request: Request) -> Response {
     if request.uri == "/" {
         return Response {
             protocol: Protocol::Http,
@@ -47,18 +57,38 @@ pub async fn handle_get(request: Request) -> Response {
     }
 }
 
-/*fn handle_post(request: Request) {
-    todo!()
+async fn handle_post(request: Request) -> Response {
+    return Response {
+        protocol: Protocol::Http,
+        code: HttpCode::MethodNotAllowed,
+        content_type: ContentType::Html,
+        body: read_file_to_bytes("html/index.html").await,
+    };
 }
 
-fn handle_put(request: Request) {
-    todo!()
+async fn handle_put(request: Request) -> Response {
+    return Response {
+        protocol: Protocol::Http,
+        code: HttpCode::MethodNotAllowed,
+        content_type: ContentType::Html,
+        body: read_file_to_bytes("html/index.html").await,
+    };
 }
 
-fn handle_patch(request: Request) {
-    todo!()
+async fn handle_patch(request: Request) -> Response {
+    return Response {
+        protocol: Protocol::Http,
+        code: HttpCode::MethodNotAllowed,
+        content_type: ContentType::Html,
+        body: read_file_to_bytes("html/index.html").await,
+    };
 }
 
-fn handle_delete(request: Request) {
-    todo!()
-}*/
+async fn handle_delete(request: Request) -> Response {
+    return Response {
+        protocol: Protocol::Http,
+        code: HttpCode::MethodNotAllowed,
+        content_type: ContentType::Html,
+        body: read_file_to_bytes("html/index.html").await,
+    };
+}
