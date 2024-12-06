@@ -31,6 +31,7 @@ async fn handle_get(request: Request) -> Response {
             code: HttpCode::Ok,
             content_type: ContentType::Html,
             body: read_file_to_bytes("html/index.html").await,
+            compression: request.is_compression_supported(),
         };
     } else if request.uri == "/hayley" {
         thread::sleep(Duration::from_secs(5));
@@ -39,6 +40,7 @@ async fn handle_get(request: Request) -> Response {
             code: HttpCode::Ok,
             content_type: ContentType::Html,
             body: read_file_to_bytes("html/index.html").await,
+            compression: request.is_compression_supported(),
         };
     } else if request.uri == "/home" {
         return Response {
@@ -46,6 +48,7 @@ async fn handle_get(request: Request) -> Response {
             code: HttpCode::Ok,
             content_type: ContentType::Html,
             body: read_file_to_bytes("html/home.html").await,
+            compression: request.is_compression_supported(),
         };
     } else {
         return Response {
@@ -53,6 +56,7 @@ async fn handle_get(request: Request) -> Response {
             code: HttpCode::Ok,
             content_type: ContentType::Html,
             body: read_file_to_bytes("html/index.html").await,
+            compression: request.is_compression_supported(),
         };
     }
 }
@@ -63,6 +67,7 @@ async fn handle_post(request: Request) -> Response {
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
         body: read_file_to_bytes("html/index.html").await,
+        compression: request.is_compression_supported(),
     };
 }
 
@@ -72,6 +77,7 @@ async fn handle_put(request: Request) -> Response {
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
         body: read_file_to_bytes("html/index.html").await,
+        compression: request.is_compression_supported(),
     };
 }
 
@@ -81,6 +87,7 @@ async fn handle_patch(request: Request) -> Response {
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
         body: read_file_to_bytes("html/index.html").await,
+        compression: false,
     };
 }
 
@@ -90,5 +97,6 @@ async fn handle_delete(request: Request) -> Response {
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
         body: read_file_to_bytes("html/index.html").await,
+        compression: false,
     };
 }
