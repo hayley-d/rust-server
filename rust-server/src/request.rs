@@ -123,15 +123,36 @@ impl Request {
 
     pub fn is_compression_supported(&self) -> bool {
         for header in &self.headers {
-            if header.to_lowercase().contains("accept-encoding") {
-                if header.to_lowercase().split_whitespace().collect::<Vec<&str>>()[1] == "gzip" {
-                    return true;
+            let header = header.to_lowercase();
+
+            if header.contains("accept-encoding") {
+                if header.to_lowercase().contains(',') {
+                    // multiple compression types
+                    let mut encodings: Vec<&str> =
+                        header.split(',').map(|m| m.trim()).collect::<Vec<&str>>();
+                    encodings[0] = &encodings[0].split_whitespace().collect::<Vec<&str>>()[1];
+
+                    for encoding in encodings {
+                        if encoding == "gzip" {
+                            return true;
+                        }
+                    }
+                } else {
+                    if header
+                        .to_lowercase()
+                        .split_whitespace()
+                        .collect::<Vec<&str>>()[1]
+                        == "gzip"
+                    {
+                        return true;
+                    }
                 }
             }
         }
         return false;
     }
 }
+
 
 #[derive(Debug)]
 pub enum HttpCode {
