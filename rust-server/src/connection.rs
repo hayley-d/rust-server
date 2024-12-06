@@ -74,6 +74,7 @@ pub mod my_socket {
 pub mod connections {
     #![allow(dead_code, unused_variables)]
 
+    use std::fmt::Display;
     use std::net::SocketAddr;
     use std::sync::Arc;
     use std::thread;
@@ -102,6 +103,72 @@ pub mod connections {
         pub stream: TcpStream,
         pub addr: SocketAddr,
         pub shutdown_rx: broadcast::Receiver<Message>,
+    }
+
+    pub struct Request {
+        headers: Vec<String>,
+        body: String,
+        method: HttpMethod,
+        uri: String,
+    }
+
+    impl Request {
+        pub fn new(buffer: &[u8]) -> Request {
+            // unwrap is safe as request has been parsed for any issues before this is called
+            let request = String::from_utf8(buffer.to_vec()).unwrap();
+
+            let request: Vec<&str> = request.lines().collect();
+
+            todo!()
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum HttpMethod {
+        GET,
+        POST,
+        PUT,
+        PATCH,
+        DELETE,
+    }
+
+    impl Display for HttpMethod {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                HttpMethod::GET => write!(f, "GET"),
+                HttpMethod::POST => write!(f, "POST"),
+                HttpMethod::PUT => write!(f, "PUT"),
+                HttpMethod::PATCH => write!(f, "PATCH"),
+                HttpMethod::DELETE => write!(f, "DELETE"),
+            }
+        }
+    }
+
+    impl PartialEq for HttpMethod {
+        fn eq(&self, other: &Self) -> bool {
+            match self {
+                HttpMethod::GET => match other {
+                    HttpMethod::GET => true,
+                    _ => false,
+                },
+                HttpMethod::POST => match other {
+                    HttpMethod::POST => true,
+                    _ => false,
+                },
+                HttpMethod::PUT => match other {
+                    HttpMethod::PUT => true,
+                    _ => false,
+                },
+                HttpMethod::PATCH => match other {
+                    HttpMethod::PATCH => true,
+                    _ => false,
+                },
+                HttpMethod::DELETE => match other {
+                    HttpMethod::DELETE => true,
+                    _ => false,
+                },
+            }
+        }
     }
 
     pub async fn handle_connection(stream: &mut TcpStream) -> Result<(), ErrorType> {
@@ -172,7 +239,7 @@ pub mod connections {
     }
 
     impl Listener {
-        pub async fn run(&mut self, logger: Arc<Mutex<Logger>>) -> Result<(), ErrorType> {
+        /*pub async fn run(&mut self, logger: Arc<Mutex<Logger>>) -> Result<(), ErrorType> {
             loop {
                 let logger = Arc::clone(&logger);
                 // Returns an error when the semaphore has been closed, since I do not close it
@@ -205,7 +272,7 @@ pub mod connections {
                     drop(permit);
                 });
             }
-        }
+        }*/
 
         pub async fn accept(&mut self) -> Result<(TcpStream, SocketAddr), ErrorType> {
             let mut backoff: usize = 200;
@@ -235,7 +302,7 @@ pub mod connections {
         }
     }
 
-    impl ConnectionHandler {
+    /*impl ConnectionHandler {
         pub async fn run(&mut self) -> Result<(), ErrorType> {
             let msg: Message = match self.shutdown_rx.recv().await {
                 Ok(m) => m,
@@ -262,5 +329,5 @@ pub mod connections {
             //}
             return Ok(());
         }
-    }
+    }*/
 }

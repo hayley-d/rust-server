@@ -1,13 +1,16 @@
 use rust_server::connection::{connections::*, my_socket::*};
 use rust_server::error::my_errors::*;
+use rust_server::request_validation::handle_request;
 use rust_server::shutdown::*;
-use socket2::SockAddr;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{broadcast, Mutex, Semaphore};
+use tokio::time::timeout;
 
 const DEFAULT_PORT: u16 = 7878;
 
@@ -76,7 +79,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
     let logger = Arc::new(Mutex::new(logger));
     loop {
         let logger = Arc::clone(&logger);
-        listener.run(logger.clone()).await?;
+
         // Returns an error when the semaphore has been closed, since I do not close it
         // unwrap should be safe
         let permit = listener
@@ -103,28 +106,40 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
 
         tokio::spawn(async move {
             let logger = Arc::clone(&logger);
-            // create 4kb buffer
-            let mut buffer: [u8; 4096] = [0; 4096];
 
             loop {
-                let _ = match handler.stream.read(&mut buffer).await {
-                    Ok(number_bytes) if number_bytes == 0 => return,
-                    Ok(number_bytes) => number_bytes,
-                    Err(_) => {
-                        let e = ErrorType::SocketError(String::from("Error connecting to client"));
+                let mut buffer: [u8; 4096] = [0; 4096];
+                let bytes_read =
+                    match timeout(Duration::from_secs(5), handler.stream.read(&mut buffer)).await {
+                        Ok(Ok(number_bytes)) if number_bytes == 0 => break,
+                        Ok(Ok(number_bytes)) => number_bytes,
+                        Ok(Err(_)) => {
+                            let e =
+                                ErrorType::SocketError(String::from("Error connecting to client"));
+                            logger.lock().await.log_error(&e);
+                            break;
+                        }
+                        Err(_) => break,
+                    };
+
+                // check request for any potential maliciousness
+                match handle_request(&buffer[..bytes_read]) {
+                    Ok(_) => (),
+                    Err(e) => {
                         logger.lock().await.log_error(&e);
-                        return;
                     }
                 };
 
-                handle_request(String::from_utf8(buffer.to_vec()).unwrap());
+                let request: Request = parse_request(&buffer[..bytes_read]);
 
-                let response: String = String::new();
+                let contents = fs::read_to_string("html/home.html").await.unwrap();
+                let length: usize = contents.len();
+                let response =
+                    format!("HTTP/1.1 200 OK\r\nContent-Length: {length}\r\n\r\n{contents}");
 
                 if let Err(_) = handler.stream.write_all(&response.into_bytes()).await {
                     let e = ErrorType::SocketError(String::from("Error connecting to client"));
                     logger.lock().await.log_error(&e);
-                    return;
                 }
 
                 if !handler.shutdown_rx.is_empty() {
@@ -135,7 +150,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                                 "Unable to receive message from shutdown sender",
                             ));
                             logger.lock().await.log_error(&e);
-                            return;
+                            Message::ServerRunning
                         }
                     };
 
@@ -144,12 +159,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                     }
                 }
             }
-            println!("Permit dropped for :{:?}", permit);
             drop(permit);
         });
     }
-}
-
-fn handle_request(request: String) {
-    todo!()
 }
