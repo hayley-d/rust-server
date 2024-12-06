@@ -37,6 +37,7 @@ pub struct Response {
     pub code: HttpCode,
     pub content_type: ContentType,
     pub body: Vec<u8>,
+    pub compression: bool,
 }
 
 impl Display for Response {
@@ -44,12 +45,22 @@ impl Display for Response {
         let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
         let now: DateTime<Utc> = Utc::now();
         let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        let response_header: String = format!(
-            "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n",
-            date,
-            self.content_type, 
-            self.body.len()
-        );
+        let response_header : String;
+        if !self.compression {
+            response_header = format!(
+                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n",
+                date,
+                self.content_type, 
+                self.body.len()
+            );
+        } else {
+            response_header = format!(
+                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n",
+                date,
+                self.content_type, 
+                self.body.len()
+            );
+        }
 
         write!(
             f,
@@ -108,6 +119,17 @@ impl Request {
             method,
             uri,
         });
+    }
+
+    pub fn is_compression_supported(&self) -> bool {
+        for header in &self.headers {
+            if header.to_lowercase().contains("accept-encoding") {
+                if header.to_lowercase().split_whitespace().collect::<Vec<&str>>()[1] == "gzip" {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 
