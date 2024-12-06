@@ -1,8 +1,7 @@
 use rust_server::connection::connections::*;
 use rust_server::error::my_errors::*;
 use rust_server::request_validation::handle_request;
-use rust_server::shutdown::*;
-use rust_server::{my_socket::*, Request};
+use rust_server::{my_socket::*, request::*, shutdown::*};
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -48,6 +47,15 @@ async fn main() -> Result<(), ErrorType> {
             panic!("Error creating listener, refer to the server log");
         }
     };
+
+    let res = Response {
+        protocol: Protocol::Http,
+        code: HttpCode::Ok,
+        content_type: ContentType::Text,
+        body: Vec::with_capacity(0),
+    };
+
+    println!("{}", res);
 
     // create a channel
     let (tx, _rx) = broadcast::channel(10);

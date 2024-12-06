@@ -1,8 +1,68 @@
-use tokio::fs;
+use chrono::{DateTime, Utc};
+use tokio::fs::{self, File};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::ErrorType;
+use core::str;
 use std::fmt::Display;
+use std::thread;
+use std::time::Duration;
+
+pub enum Protocol {
+    Http,
+}
+
+impl Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Protocol::Http => write!(f, "HTTP/1.1"),
+        }
+    }
+}
+
+pub enum ContentType {
+    Text,
+    Html,
+    Json,
+}
+
+impl Display for ContentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContentType::Text => write!(f, "text/plain"),
+            ContentType::Html => write!(f, "text/html"),
+            ContentType::Json => write!(f, "application/json"),
+        }
+    }
+}
+
+pub struct Response {
+    pub protocol: Protocol,
+    pub code: HttpCode,
+    pub content_type: ContentType,
+    pub body: Vec<u8>,
+}
+
+impl Display for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
+        let now: DateTime<Utc> = Utc::now();
+        let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let response_header: String = format!(
+            "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n",
+            date,
+            self.content_type, 
+            self.body.len()
+        );
+
+        write!(
+            f,
+            "{}{}\r\n\r\n{}",
+            response_line, response_header,str::from_utf8(&self.body).unwrap()
+        )
+    }
+}
 
 pub struct Request {
     headers: Vec<String>,
@@ -191,50 +251,52 @@ impl PartialEq for HttpMethod {
         }
     }
 }
-pub async fn format_response(status_code: &str, contents: String, stream: &mut TcpStream) {
-    let length: usize = contents.len();
-    let response = format!("HTTP/1.1 {status_code}\r\nContent-Length: {length}\r\n\r\n{contents}");
-    stream.write_all(response.as_bytes()).await.unwrap();
+
+async fn read_file_to_bytes(path:&str) -> Vec<u8> {
+    let metadata = fs::metadata(path).await.unwrap();
+    let mut file = File::open(path).await.unwrap();
+    let mut buffer : Vec<u8> = Vec::with_capacity(metadata.len() as usize);
+    file.read_to_end(&mut buffer).await.unwrap();
+    return buffer;
 }
 
-pub fn get_route(route: &str) -> &'static [u8] {
-    return match route {
-        "Home" => b"GET / HTTP/1.1",
-        "hayley" => b"GET /hayley HTTP/1.1",
-        "test" => b"GET /home HTTP/1.1",
-        _ => b"GET / HTTP/1.1",
-    };
-}
 
-async fn handle_get(request: Request, stream: &mut TcpStream) {
+pub async fn handle_get(request: Request, stream: &mut TcpStream) {
     if request.uri == "/" {
-        format_response(
-            "200 OK",
-            fs::read_to_string("html/home.html").await.unwrap(),
-            stream,
-        )
-        .await;
-    } else if buffer.starts_with(get_route("hayley")) {
+        let response : Response  = Response{
+            protocol: Protocol::Http,
+            code: HttpCode::Ok,
+            content_type: ContentType::Html,
+            body: read_file_to_bytes("html/index.html").await,
+        };
+        
+        let _ = stream.write_all(response.to_string().as_bytes());
+    } else if request.uri == "/hayley" {
         thread::sleep(Duration::from_secs(5));
-        format_response(
-            "200 OK",
-            fs::read_to_string("html/index.html").await.unwrap(),
-            stream,
-        )
-        .await;
+        let response : Response  = Response{
+            protocol: Protocol::Http,
+            code: HttpCode::Ok,
+            content_type: ContentType::Html,
+            body: read_file_to_bytes("html/index.html").await,
+        };
+        
+        let _ = stream.write_all(response.to_string().as_bytes());
+
     } else {
-        format_response(
-            "200 OK",
-            fs::read_to_string("html/index.html").await.unwrap(),
-            stream,
-        )
-        .await;
+        let response : Response  = Response{
+            protocol: Protocol::Http,
+            code: HttpCode::Ok,
+            content_type: ContentType::Html,
+            body: read_file_to_bytes("html/index.html").await,
+        };
+        
+        let _ = stream.write_all(response.to_string().as_bytes());
+
     }
 
-    todo!()
 }
 
-fn handle_post(request: Request) {
+/*fn handle_post(request: Request) {
     todo!()
 }
 
@@ -248,4 +310,4 @@ fn handle_patch(request: Request) {
 
 fn handle_delete(request: Request) {
     todo!()
-}
+}*/
