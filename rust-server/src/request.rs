@@ -1,8 +1,10 @@
-use chrono::{DateTime, Utc};
-
 use crate::ErrorType;
+use chrono::{DateTime, Utc};
 use core::str;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::fmt::Display;
+use std::io::Write;
 
 pub enum Protocol {
     Http,
@@ -40,7 +42,47 @@ pub struct Response {
     pub compression: bool,
 }
 
-impl Display for Response {
+impl Response {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        // Response line: HTTP/1.1 <status code>
+        let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
+
+        // Date Header
+        let now: DateTime<Utc> = Utc::now();
+        let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+
+        let mut headers: Vec<String> = vec![
+            format!("Server: Ferriscuit"),
+            format!("Date: {}", date),
+            format!("Cache-Control: no-cache"),
+            format!("Content-Type: {}", self.content_type),
+        ];
+
+        let body: Vec<u8>;
+
+        if !self.compression {
+            body = self.body.clone();
+        } else {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder
+                .write_all(&self.body)
+                .expect("Failed to write body to gzip encoder");
+            body = encoder.finish().expect("Failed to finish gzip compression");
+            headers.push(format!("Content-Encoding: gzip"));
+        }
+        headers.push(format!("Content-Length: {}", body.len()));
+
+        let mut response = Vec::new();
+        response.extend_from_slice(response_line.as_bytes());
+        response.extend_from_slice(headers.join("\r\n").as_bytes());
+        response.extend_from_slice(b"\r\n\r\n");
+        response.extend_from_slice(&body);
+
+        return response;
+    }
+}
+
+/*impl Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
         let now: DateTime<Utc> = Utc::now();
@@ -50,25 +92,32 @@ impl Display for Response {
             response_header = format!(
                 "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n",
                 date,
-                self.content_type, 
+                self.content_type,
                 self.body.len()
             );
-        } else {
-            response_header = format!(
-                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n",
-                date,
-                self.content_type, 
-                self.body.len()
-            );
-        }
-
         write!(
             f,
             "{}{}\r\n\r\n{}",
             response_line, response_header,str::from_utf8(&self.body).unwrap()
         )
+
+        } else {
+            response_header = format!(
+                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n",
+                date,
+                self.content_type,
+                self.body.len()
+            );
+            let encoded_body : Vec<u8> = Vec::new();
+            let mut encoder = GzEncoder::new(encoded_body,Compression::default());
+            encoder.write_all(&self.body).unwrap();
+            encoder.finish().unwrap();
+            write!(f,"{}{}\r\n\r\n",response_line, response_header).and_then(|_| f.write_all(&encoded_body))
+        }
+
+
     }
-}
+}*/
 
 pub struct Request {
     pub headers: Vec<String>,
@@ -152,7 +201,6 @@ impl Request {
         return false;
     }
 }
-
 
 #[derive(Debug)]
 pub enum HttpCode {
@@ -289,5 +337,3 @@ impl PartialEq for HttpMethod {
         }
     }
 }
-
-
