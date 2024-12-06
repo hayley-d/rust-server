@@ -25,6 +25,24 @@ pub async fn handle_response(request: Request) -> Response {
 }
 
 async fn handle_get(request: Request) -> Response {
+    if request.headers.contains(&String::from("Brew")) {
+        return Response {
+            protocol: Protocol::Http,
+            code: HttpCode::Teapot,
+            content_type: ContentType::Text,
+            body: r#"
+      I'm a Teapot, I can't brew coffee
+         _______
+        /       \
+       |  O   O |
+       |    ^    |
+        \_______/
+"#
+            .as_bytes()
+            .to_vec(),
+            compression: request.is_compression_supported(),
+        };
+    }
     if request.uri == "/" {
         return Response {
             protocol: Protocol::Http,
@@ -48,6 +66,23 @@ async fn handle_get(request: Request) -> Response {
             code: HttpCode::Ok,
             content_type: ContentType::Html,
             body: read_file_to_bytes("html/home.html").await,
+            compression: request.is_compression_supported(),
+        };
+    } else if request.uri == "/coffee" {
+        return Response {
+            protocol: Protocol::Http,
+            code: HttpCode::Teapot,
+            content_type: ContentType::Text,
+            body: r#"
+      I'm a Teapot, I can't brew coffee
+         _______
+        /       \
+       |  O   O |
+       |    ^    |
+        \_______/
+"#
+            .as_bytes()
+            .to_vec(),
             compression: request.is_compression_supported(),
         };
     } else {

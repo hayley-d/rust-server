@@ -82,43 +82,6 @@ impl Response {
     }
 }
 
-/*impl Display for Response {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
-        let now: DateTime<Utc> = Utc::now();
-        let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        let response_header : String;
-        if !self.compression {
-            response_header = format!(
-                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n",
-                date,
-                self.content_type,
-                self.body.len()
-            );
-        write!(
-            f,
-            "{}{}\r\n\r\n{}",
-            response_line, response_header,str::from_utf8(&self.body).unwrap()
-        )
-
-        } else {
-            response_header = format!(
-                "Server: Ferriscuit\r\nDate: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nContent-Encoding: gzip\r\nCache-Control: no-cache\r\n",
-                date,
-                self.content_type,
-                self.body.len()
-            );
-            let encoded_body : Vec<u8> = Vec::new();
-            let mut encoder = GzEncoder::new(encoded_body,Compression::default());
-            encoder.write_all(&self.body).unwrap();
-            encoder.finish().unwrap();
-            write!(f,"{}{}\r\n\r\n",response_line, response_header).and_then(|_| f.write_all(&encoded_body))
-        }
-
-
-    }
-}*/
-
 pub struct Request {
     pub headers: Vec<String>,
     pub body: String,
@@ -153,7 +116,7 @@ impl Request {
             if flag {
                 body.push_str(line);
             } else {
-                let key_words: [&str; 4] = ["Host", "User-Agent", "Accept", "Encoding"];
+                let key_words: [&str; 5] = ["Host", "User-Agent", "Accept", "Encoding", "Brew"];
                 for word in key_words {
                     if line.contains(word) {
                         headers.push(line.to_string());
