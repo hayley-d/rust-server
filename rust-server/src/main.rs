@@ -130,7 +130,13 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                     }
                 };
 
-                let request: Request = parse_request(&buffer[..bytes_read]);
+                let request: Request = match Request::new(&buffer[..bytes_read]) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        logger.lock().await.log_error(&e);
+                        break;
+                    }
+                };
 
                 let contents = fs::read_to_string("html/home.html").await.unwrap();
                 let length: usize = contents.len();

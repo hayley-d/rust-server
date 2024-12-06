@@ -113,13 +113,51 @@ pub mod connections {
     }
 
     impl Request {
-        pub fn new(buffer: &[u8]) -> Request {
+        pub fn new(buffer: &[u8]) -> Result<Request, ErrorType> {
             // unwrap is safe as request has been parsed for any issues before this is called
             let request = String::from_utf8(buffer.to_vec()).unwrap();
 
             let request: Vec<&str> = request.lines().collect();
 
-            todo!()
+            if request.len() < 3 {
+                return Err(ErrorType::ConnectionError(String::from("Invalid request")));
+            }
+
+            let method: HttpMethod =
+                HttpMethod::new(request[0].split_whitespace().collect::<Vec<&str>>()[0]);
+
+            let uri: String = request[0].split_whitespace().collect::<Vec<&str>>()[1].to_string();
+
+            let mut headers: Vec<String> = Vec::with_capacity(request.len() - 1);
+            let mut body: String = String::new();
+            let mut flag = false;
+            for line in &request[1..] {
+                if line.is_empty() {
+                    flag = true;
+                    continue;
+                }
+                if flag {
+                    body.push_str(line);
+                } else {
+                    let key_words: [&str; 4] = ["Host", "User-Agent", "Accept", "Encoding"];
+                    for word in key_words {
+                        if line.contains(word) {
+                            headers.push(line.to_string());
+                        }
+                    }
+                }
+            }
+
+            println!("Request Line: Method: {} URI: {}", method, uri);
+            println!("Headers:{:?}", headers);
+            println!("Body:{:?}", body);
+
+            return Ok(Request {
+                headers,
+                body,
+                method,
+                uri,
+            });
         }
     }
 
@@ -130,6 +168,22 @@ pub mod connections {
         PUT,
         PATCH,
         DELETE,
+    }
+
+    impl HttpMethod {
+        pub fn new(method: &str) -> HttpMethod {
+            if method.to_uppercase().contains("GET") {
+                HttpMethod::GET
+            } else if method.to_uppercase().contains("POST") {
+                HttpMethod::POST
+            } else if method.to_uppercase().contains("PUT") {
+                HttpMethod::PUT
+            } else if method.to_uppercase().contains("PATCH") {
+                HttpMethod::PATCH
+            } else {
+                HttpMethod::DELETE
+            }
+        }
     }
 
     impl Display for HttpMethod {
