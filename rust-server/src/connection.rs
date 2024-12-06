@@ -1,7 +1,6 @@
 pub mod connections {
     #![allow(dead_code, unused_variables)]
 
-    use std::fmt::Display;
     use std::net::SocketAddr;
     use std::sync::Arc;
     use std::thread;
@@ -14,7 +13,7 @@ pub mod connections {
 
     use crate::request_validation::handle_request;
     use crate::shutdown::Message;
-    use crate::{ErrorType, Logger};
+    use crate::ErrorType;
 
     const MAX_CONNECTIONS: usize = 5;
 
@@ -30,126 +29,6 @@ pub mod connections {
         pub stream: TcpStream,
         pub addr: SocketAddr,
         pub shutdown_rx: broadcast::Receiver<Message>,
-    }
-
-    pub struct Request {
-        headers: Vec<String>,
-        body: String,
-        method: HttpMethod,
-        uri: String,
-    }
-
-    impl Request {
-        pub fn new(buffer: &[u8]) -> Result<Request, ErrorType> {
-            // unwrap is safe as request has been parsed for any issues before this is called
-            let request = String::from_utf8(buffer.to_vec()).unwrap();
-
-            let request: Vec<&str> = request.lines().collect();
-
-            if request.len() < 3 {
-                return Err(ErrorType::ConnectionError(String::from("Invalid request")));
-            }
-
-            let method: HttpMethod =
-                HttpMethod::new(request[0].split_whitespace().collect::<Vec<&str>>()[0]);
-
-            let uri: String = request[0].split_whitespace().collect::<Vec<&str>>()[1].to_string();
-
-            let mut headers: Vec<String> = Vec::with_capacity(request.len() - 1);
-            let mut body: String = String::new();
-            let mut flag = false;
-            for line in &request[1..] {
-                if line.is_empty() {
-                    flag = true;
-                    continue;
-                }
-                if flag {
-                    body.push_str(line);
-                } else {
-                    let key_words: [&str; 4] = ["Host", "User-Agent", "Accept", "Encoding"];
-                    for word in key_words {
-                        if line.contains(word) {
-                            headers.push(line.to_string());
-                        }
-                    }
-                }
-            }
-
-            println!("Request Line: Method: {} URI: {}", method, uri);
-            println!("Headers:{:?}", headers);
-            println!("Body:{:?}", body);
-
-            return Ok(Request {
-                headers,
-                body,
-                method,
-                uri,
-            });
-        }
-    }
-
-    #[derive(Debug)]
-    pub enum HttpMethod {
-        GET,
-        POST,
-        PUT,
-        PATCH,
-        DELETE,
-    }
-
-    impl HttpMethod {
-        pub fn new(method: &str) -> HttpMethod {
-            if method.to_uppercase().contains("GET") {
-                HttpMethod::GET
-            } else if method.to_uppercase().contains("POST") {
-                HttpMethod::POST
-            } else if method.to_uppercase().contains("PUT") {
-                HttpMethod::PUT
-            } else if method.to_uppercase().contains("PATCH") {
-                HttpMethod::PATCH
-            } else {
-                HttpMethod::DELETE
-            }
-        }
-    }
-
-    impl Display for HttpMethod {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                HttpMethod::GET => write!(f, "GET"),
-                HttpMethod::POST => write!(f, "POST"),
-                HttpMethod::PUT => write!(f, "PUT"),
-                HttpMethod::PATCH => write!(f, "PATCH"),
-                HttpMethod::DELETE => write!(f, "DELETE"),
-            }
-        }
-    }
-
-    impl PartialEq for HttpMethod {
-        fn eq(&self, other: &Self) -> bool {
-            match self {
-                HttpMethod::GET => match other {
-                    HttpMethod::GET => true,
-                    _ => false,
-                },
-                HttpMethod::POST => match other {
-                    HttpMethod::POST => true,
-                    _ => false,
-                },
-                HttpMethod::PUT => match other {
-                    HttpMethod::PUT => true,
-                    _ => false,
-                },
-                HttpMethod::PATCH => match other {
-                    HttpMethod::PATCH => true,
-                    _ => false,
-                },
-                HttpMethod::DELETE => match other {
-                    HttpMethod::DELETE => true,
-                    _ => false,
-                },
-            }
-        }
     }
 
     pub async fn handle_connection(stream: &mut TcpStream) -> Result<(), ErrorType> {
@@ -220,41 +99,6 @@ pub mod connections {
     }
 
     impl Listener {
-        /*pub async fn run(&mut self, logger: Arc<Mutex<Logger>>) -> Result<(), ErrorType> {
-            loop {
-                let logger = Arc::clone(&logger);
-                // Returns an error when the semaphore has been closed, since I do not close it
-                // unwrap should be safe
-                let permit = self.connection_limit.clone().acquire_owned().await.unwrap();
-
-                let (stream, addr) = self.accept().await?;
-                let mut handler = ConnectionHandler {
-                    stream,
-                    addr,
-                    shutdown_rx: self.shutdown_tx.lock().await.subscribe(),
-                };
-
-                self.shutdown_tx
-                    .lock()
-                    .await
-                    .send(Message::ServerRunning)
-                    .unwrap();
-
-                println!("Permit aquired for :{:?}", permit);
-
-                tokio::spawn(async move {
-                    match handler.run().await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            logger.lock().await.log_error(&e);
-                        }
-                    };
-                    println!("Permit dropped for :{:?}", permit);
-                    drop(permit);
-                });
-            }
-        }*/
-
         pub async fn accept(&mut self) -> Result<(TcpStream, SocketAddr), ErrorType> {
             let mut backoff: usize = 200;
 
@@ -282,33 +126,4 @@ pub mod connections {
             }
         }
     }
-
-    /*impl ConnectionHandler {
-        pub async fn run(&mut self) -> Result<(), ErrorType> {
-            let msg: Message = match self.shutdown_rx.recv().await {
-                Ok(m) => m,
-                Err(_) => {
-                    return Err(ErrorType::ConnectionError(String::from(
-                        "Unable to receive message from shutdown sender",
-                    )))
-                }
-            };
-
-            //while msg != Message::Terminate {
-            handle_connection(&mut self.stream).await?;
-            println!("Connection has been handled and ended");
-            if !self.shutdown_rx.is_empty() {
-                let msg: Message = match self.shutdown_rx.recv().await {
-                    Ok(m) => m,
-                    Err(_) => {
-                        return Err(ErrorType::ConnectionError(String::from(
-                            "Unable to receive message from shutdown sender",
-                        )))
-                    }
-                };
-            }
-            //}
-            return Ok(());
-        }
-    }*/
 }

@@ -7,6 +7,9 @@ pub use shutdown::*;
 pub mod socket;
 pub use socket::*;
 
+pub mod request;
+pub use request::*;
+
 pub mod connection;
 pub use crate::connection::{connections::*, my_socket};
 
