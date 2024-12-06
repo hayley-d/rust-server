@@ -1,12 +1,11 @@
 use rust_server::connection::connections::*;
 use rust_server::error::my_errors::*;
 use rust_server::request_validation::handle_request;
-use rust_server::{my_socket::*, request::*, shutdown::*};
+use rust_server::{handle_get, my_socket::*, request::*, shutdown::*};
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{broadcast, Mutex, Semaphore};
@@ -47,15 +46,6 @@ async fn main() -> Result<(), ErrorType> {
             panic!("Error creating listener, refer to the server log");
         }
     };
-
-    let res = Response {
-        protocol: Protocol::Http,
-        code: HttpCode::Ok,
-        content_type: ContentType::Text,
-        body: Vec::with_capacity(0),
-    };
-
-    println!("{}", res);
 
     // create a channel
     let (tx, _rx) = broadcast::channel(10);
@@ -147,12 +137,13 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                     }
                 };
 
-                let contents = fs::read_to_string("html/home.html").await.unwrap();
-                let length: usize = contents.len();
-                let response =
-                    format!("HTTP/1.1 200 OK\r\nContent-Length: {length}\r\n\r\n{contents}");
+                let response = handle_get(request).await;
 
-                if let Err(_) = handler.stream.write_all(&response.into_bytes()).await {
+                if let Err(_) = handler
+                    .stream
+                    .write_all(response.to_string().as_bytes())
+                    .await
+                {
                     let e = ErrorType::SocketError(String::from("Error connecting to client"));
                     logger.lock().await.log_error(&e);
                 }
