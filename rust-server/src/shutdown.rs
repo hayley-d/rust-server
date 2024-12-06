@@ -67,6 +67,10 @@ impl Shutdown {
 }
 
 impl Clone for Message {
+    /// Creates a clone of the `Message` enum variant.
+    ///
+    /// This is implemented manually to demonstrate how different variants
+    /// of the `Message` enum can be cloned.
     fn clone(&self) -> Self {
         match self {
             Message::ServerRunning => Message::ServerRunning,
@@ -76,6 +80,12 @@ impl Clone for Message {
 }
 
 impl PartialEq for Message {
+    /// Compares two `Message` enum variants for equality.
+    ///
+    /// # Returns
+    ///
+    /// * `true` if both `Message` variants are the same.
+    /// * `false` otherwise.
     fn eq(&self, other: &Self) -> bool {
         match self {
             Message::ServerRunning => match other {
