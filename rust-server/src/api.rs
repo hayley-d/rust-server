@@ -1,10 +1,10 @@
+use argon2::Argon2;
 use std::thread;
 use std::time::Duration;
+use tokio::fs::{self, File, OpenOptions};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use tokio::fs::{self, File};
-use tokio::io::AsyncReadExt;
-
-use crate::{ContentType, HttpCode, HttpMethod, Protocol, Request, Response};
+use crate::{ContentType, ErrorType, HttpCode, HttpMethod, Protocol, Request, Response};
 
 async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     let metadata = fs::metadata(path).await.unwrap();
@@ -48,7 +48,7 @@ async fn handle_get(request: Request) -> Response {
             protocol: Protocol::Http,
             code: HttpCode::Ok,
             content_type: ContentType::Html,
-            body: read_file_to_bytes("html/index.html").await,
+            body: read_file_to_bytes("static/index.html").await,
             compression: request.is_compression_supported(),
         };
     } else if request.uri == "/hayley" {
@@ -57,7 +57,7 @@ async fn handle_get(request: Request) -> Response {
             protocol: Protocol::Http,
             code: HttpCode::Ok,
             content_type: ContentType::Html,
-            body: read_file_to_bytes("html/index.html").await,
+            body: read_file_to_bytes("static/index.html").await,
             compression: request.is_compression_supported(),
         };
     } else if request.uri == "/home" {
@@ -65,7 +65,7 @@ async fn handle_get(request: Request) -> Response {
             protocol: Protocol::Http,
             code: HttpCode::Ok,
             content_type: ContentType::Html,
-            body: read_file_to_bytes("html/home.html").await,
+            body: read_file_to_bytes("static/home.html").await,
             compression: request.is_compression_supported(),
         };
     } else if request.uri == "/coffee" {
@@ -90,18 +90,28 @@ async fn handle_get(request: Request) -> Response {
             protocol: Protocol::Http,
             code: HttpCode::Ok,
             content_type: ContentType::Html,
-            body: read_file_to_bytes("html/index.html").await,
+            body: read_file_to_bytes("static/index.html").await,
             compression: request.is_compression_supported(),
         };
     }
 }
 
 async fn handle_post(request: Request) -> Response {
+    if request.uri == "/signup" {
+        return Response {
+            protocol: Protocol::Http,
+            code: HttpCode::Ok,
+            content_type: ContentType::Html,
+            body: read_file_to_bytes("static/index.html").await,
+            compression: request.is_compression_supported(),
+        };
+    }
+
     return Response {
         protocol: Protocol::Http,
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
-        body: read_file_to_bytes("html/index.html").await,
+        body: read_file_to_bytes("static/index.html").await,
         compression: request.is_compression_supported(),
     };
 }
@@ -111,7 +121,7 @@ async fn handle_put(request: Request) -> Response {
         protocol: Protocol::Http,
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
-        body: read_file_to_bytes("html/index.html").await,
+        body: read_file_to_bytes("static/index.html").await,
         compression: request.is_compression_supported(),
     };
 }
@@ -121,7 +131,7 @@ async fn handle_patch(request: Request) -> Response {
         protocol: Protocol::Http,
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
-        body: read_file_to_bytes("html/index.html").await,
+        body: read_file_to_bytes("static/index.html").await,
         compression: false,
     };
 }
@@ -131,7 +141,41 @@ async fn handle_delete(request: Request) -> Response {
         protocol: Protocol::Http,
         code: HttpCode::MethodNotAllowed,
         content_type: ContentType::Html,
-        body: read_file_to_bytes("html/index.html").await,
+        body: read_file_to_bytes("static/index.html").await,
         compression: false,
     };
+}
+
+async fn insert_user(username: String, password: String) -> Result<(), ErrorType> {
+    let password = password.into_bytes();
+    let mut hashed_password: Vec<u8> = Vec::new();
+
+    match Argon2::default().hash_password_into(&password, b"", &mut hashed_password) {
+        Ok(_) => (),
+        Err(_) => {
+            return Err(ErrorType::InternalServerError(String::from(
+                "Problem occured when creating password",
+            )));
+        }
+    }
+
+    let mut file_input: Vec<u8> = username.into_bytes();
+    file_input.push(b"|"[0]);
+    file_input.append(&mut hashed_password);
+
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open("/static/users.txt")
+        .await
+        .expect("cannot open file");
+
+    match file.write(&file_input).await {
+        Ok(_) => (),
+        Err(_) => {
+            return Err(ErrorType::InternalServerError(String::from(
+                "Problem occured when writing user to db",
+            )));
+        }
+    };
+    Ok(())
 }
