@@ -1,10 +1,11 @@
+use crate::{ContentType, ErrorType, HttpCode, HttpMethod, Protocol, Request, Response};
 use argon2::Argon2;
+use rand::Rng;
+use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-use crate::{ContentType, ErrorType, HttpCode, HttpMethod, Protocol, Request, Response};
 
 async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     let metadata = fs::metadata(path).await.unwrap();
@@ -98,6 +99,43 @@ async fn handle_get(request: Request) -> Response {
 
 async fn handle_post(request: Request) -> Response {
     if request.uri == "/signup" {
+        // parse the JSON into a hashmap
+        let user: HashMap<String, String> = match serde_json::from_str(&request.body) {
+            Ok(u) => u,
+            Err(_) => {
+                return Response {
+                    protocol: Protocol::Http,
+                    code: HttpCode::InternalServerError,
+                    content_type: ContentType::Html,
+                    body: read_file_to_bytes("static/index.html").await,
+                    compression: request.is_compression_supported(),
+                };
+            }
+        };
+        let session_id: String = generate_session_id();
+
+        // insert the new user into the file
+        match insert_user(
+            user["username"].clone(),
+            user["password"].clone(),
+            session_id.clone(),
+        )
+        .await
+        {
+            Ok(_) => (),
+            Err(_) => {
+                return Response {
+                    protocol: Protocol::Http,
+                    code: HttpCode::InternalServerError,
+                    content_type: ContentType::Html,
+                    body: read_file_to_bytes("static/index.html").await,
+                    compression: request.is_compression_supported(),
+                };
+            }
+        }
+
+        let cookie: String = format!("session={}; httpOnly; Path=/", session_id);
+
         return Response {
             protocol: Protocol::Http,
             code: HttpCode::Ok,
@@ -146,10 +184,9 @@ async fn handle_delete(request: Request) -> Response {
     };
 }
 
-async fn insert_user(username: String, password: String) -> Result<(), ErrorType> {
+async fn insert_user(username: String, password: String, session: String) -> Result<(), ErrorType> {
     let password = password.into_bytes();
     let mut hashed_password: Vec<u8> = Vec::new();
-
     match Argon2::default().hash_password_into(&password, b"", &mut hashed_password) {
         Ok(_) => (),
         Err(_) => {
@@ -162,6 +199,8 @@ async fn insert_user(username: String, password: String) -> Result<(), ErrorType
     let mut file_input: Vec<u8> = username.into_bytes();
     file_input.push(b"|"[0]);
     file_input.append(&mut hashed_password);
+    file_input.push(b"|"[0]);
+    file_input.append(&mut session.into_bytes());
 
     let mut file = OpenOptions::new()
         .append(true)
@@ -177,5 +216,25 @@ async fn insert_user(username: String, password: String) -> Result<(), ErrorType
             )));
         }
     };
+
     Ok(())
+}
+
+fn generate_session_id() -> String {
+    let mut rng = rand::thread_rng();
+    (0..32)
+        .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
+        .collect()
+}
+
+async fn verify_cookie(cookie: &str) -> bool {
+    if cookie.starts_with("session=") {
+        return match fs::read_to_string("/static/users.txt").await {
+            Ok(f) => {
+                f.contains(
+            }
+            Err(_) => false,
+        }
+    }
+    false
 }

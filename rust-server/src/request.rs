@@ -94,17 +94,21 @@ impl Request {
         // unwrap is safe as request has been parsed for any issues before this is called
         let request = String::from_utf8(buffer.to_vec()).unwrap();
 
+        // split the request by line
         let request: Vec<&str> = request.lines().collect();
 
         if request.len() < 3 {
             return Err(ErrorType::ConnectionError(String::from("Invalid request")));
         }
 
+        // get the http method from the first line
         let method: HttpMethod =
             HttpMethod::new(request[0].split_whitespace().collect::<Vec<&str>>()[0]);
 
+        // get the uri from the first line
         let uri: String = request[0].split_whitespace().collect::<Vec<&str>>()[1].to_string();
 
+        // headers are the rest of the
         let mut headers: Vec<String> = Vec::with_capacity(request.len() - 1);
         let mut body: String = String::new();
         let mut flag = false;
@@ -116,12 +120,7 @@ impl Request {
             if flag {
                 body.push_str(line);
             } else {
-                let key_words: [&str; 5] = ["Host", "User-Agent", "Accept", "Encoding", "Brew"];
-                for word in key_words {
-                    if line.contains(word) {
-                        headers.push(line.to_string());
-                    }
-                }
+                headers.push(line.to_string());
             }
         }
 
