@@ -21,7 +21,8 @@ pub mod my_socket {
     ///
     /// # Example
     /// ```rust
-    /// let socket = my_socket::create_socket(8080)?;
+    /// use rust_server::my_socket;
+    /// let socket = my_socket::create_socket(8080).unwrap();
     /// ```
     pub fn create_socket(port: u16) -> Result<Socket, ErrorType> {
         // Create a new IPv6 TCP socket
@@ -87,8 +88,9 @@ pub mod my_socket {
     ///
     /// # Example
     /// ```rust
-    /// let socket = my_socket::create_socket(8080)?;
-    /// let listener = my_socket::get_listener(socket)?;
+    /// use rust_server::my_socket;
+    /// let socket = my_socket::create_socket(8080).unwrap();
+    /// let listener = my_socket::get_listener(socket).unwrap();
     /// ```
     pub fn get_listener(socket: Socket) -> Result<TcpListener, ErrorType> {
         // Convert the socket2::Socket into a standard std::net::TcpListener

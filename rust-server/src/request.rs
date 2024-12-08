@@ -4,7 +4,6 @@ use core::str;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fmt::Display;
-use std::fs;
 use std::io::Write;
 
 pub enum Protocol {
@@ -55,6 +54,7 @@ pub struct Response {
     pub headers: Vec<Header>,
 }
 
+#[allow(async_fn_in_trait)]
 pub trait MyDefault {
     async fn default() -> Self;
 }

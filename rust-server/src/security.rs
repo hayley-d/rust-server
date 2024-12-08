@@ -6,6 +6,7 @@
 ///
 /// # Example
 /// ```rust
+/// use rust_server::request_validation::handle_request;
 /// let valid_buffer: &[u8] = b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n";
 /// let result = handle_request(valid_buffer);
 /// assert!(result.is_ok());
@@ -31,6 +32,7 @@ pub mod request_validation {
     ///
     /// # Example
     /// ```rust
+    /// use rust_server::request_validation::handle_request;
     /// let valid_buffer: &[u8] = b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n";
     /// let result = handle_request(valid_buffer);
     /// assert!(result.is_ok());

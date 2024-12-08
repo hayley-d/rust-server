@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use async_server::{Message, Shutdown};
+use rust_server::{Message, Shutdown};
 use tokio::sync::{broadcast, Mutex};
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-use crate::{ContentType, ErrorType, HttpCode, HttpMethod, MyDefault, Protocol, Request, Response};
+use crate::{ContentType, ErrorType, HttpCode, HttpMethod, MyDefault, Request, Response};
 use argon2::Argon2;
 use rand::Rng;
 use std::collections::HashMap;
@@ -183,8 +183,12 @@ fn generate_session_id() -> String {
 
 async fn verify_cookie(cookie: &str) -> bool {
     if cookie.starts_with("session=") {
-        return match fs::read_to_string("/static/users.txt").await {
-            Ok(f) => f.contains(cookie.split('=').collect::<Vec<&str>>()[1]),
+        return match fs::read_to_string("static/users.txt").await {
+            Ok(f) => {
+                let cookie_value: &str = cookie.split('=').collect::<Vec<&str>>()[1];
+                println!("Cookie value: {}", cookie_value);
+                f.contains(cookie_value)
+            }
             Err(_) => false,
         };
     }
@@ -198,6 +202,7 @@ mod tests {
     #[tokio::test]
     async fn test_verify_cookie() {
         let cookie: String = String::from("session=sloth101");
-        assert_eq!(verify_cookie(&cookie).await, true);
+        let res = verify_cookie(&cookie).await;
+        assert_eq!(res, true);
     }
 }

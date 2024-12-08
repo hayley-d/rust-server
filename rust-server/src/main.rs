@@ -137,7 +137,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                     }
                 };
 
-                let response = handle_response(request).await;
+                let mut response = handle_response(request).await;
 
                 if let Err(_) = handler.stream.write_all(&response.to_bytes()).await {
                     let e = ErrorType::SocketError(String::from("Error connecting to client"));
