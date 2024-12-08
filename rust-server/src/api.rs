@@ -1,4 +1,4 @@
-use crate::{ContentType, ErrorType, HttpCode, HttpMethod, Protocol, Request, Response};
+use crate::{ContentType, ErrorType, HttpCode, HttpMethod, MyDefault, Protocol, Request, Response};
 use argon2::Argon2;
 use rand::Rng;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-async fn read_file_to_bytes(path: &str) -> Vec<u8> {
+pub async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     let metadata = fs::metadata(path).await.unwrap();
     let mut file = File::open(path).await.unwrap();
     let mut buffer: Vec<u8> = Vec::with_capacity(metadata.len() as usize);
@@ -26,12 +26,14 @@ pub async fn handle_response(request: Request) -> Response {
 }
 
 async fn handle_get(request: Request) -> Response {
-    if request.headers.contains(&String::from("Brew")) {
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Teapot,
-            content_type: ContentType::Text,
-            body: r#"
+    if request.headers.contains(&String::from("Brew")) || request.uri == "/coffee" {
+        let response = Response::default()
+            .await
+            .code(HttpCode::Teapot)
+            .content_type(ContentType::Text)
+            .compression(request.is_compression_supported())
+            .body(
+                r#"
       I'm a Teapot, I can't brew coffee
          _______
         /       \
@@ -39,77 +41,44 @@ async fn handle_get(request: Request) -> Response {
        |    ^    |
         \_______/
 "#
-            .as_bytes()
-            .to_vec(),
-            compression: request.is_compression_supported(),
-        };
+                .as_bytes()
+                .to_vec(),
+            );
+
+        return response;
     }
+
+    let mut response = Response::default()
+        .await
+        .compression(request.is_compression_supported());
+
     if request.uri == "/" {
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Ok,
-            content_type: ContentType::Html,
-            body: read_file_to_bytes("static/index.html").await,
-            compression: request.is_compression_supported(),
-        };
+        // Add Response Body
+        response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/hayley" {
         thread::sleep(Duration::from_secs(5));
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Ok,
-            content_type: ContentType::Html,
-            body: read_file_to_bytes("static/index.html").await,
-            compression: request.is_compression_supported(),
-        };
+
+        response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/home" {
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Ok,
-            content_type: ContentType::Html,
-            body: read_file_to_bytes("static/home.html").await,
-            compression: request.is_compression_supported(),
-        };
-    } else if request.uri == "/coffee" {
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Teapot,
-            content_type: ContentType::Text,
-            body: r#"
-      I'm a Teapot, I can't brew coffee
-         _______
-        /       \
-       |  O   O |
-       |    ^    |
-        \_______/
-"#
-            .as_bytes()
-            .to_vec(),
-            compression: request.is_compression_supported(),
-        };
+        response.add_body(read_file_to_bytes("static/home.html").await);
     } else {
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Ok,
-            content_type: ContentType::Html,
-            body: read_file_to_bytes("static/index.html").await,
-            compression: request.is_compression_supported(),
-        };
+        response.add_body(read_file_to_bytes("static/index.html").await);
     }
+    return response;
 }
 
 async fn handle_post(request: Request) -> Response {
+    let mut response = Response::default()
+        .await
+        .compression(request.is_compression_supported())
+        .body(read_file_to_bytes("static/index.html").await);
+
     if request.uri == "/signup" {
         // parse the JSON into a hashmap
         let user: HashMap<String, String> = match serde_json::from_str(&request.body) {
             Ok(u) => u,
             Err(_) => {
-                return Response {
-                    protocol: Protocol::Http,
-                    code: HttpCode::InternalServerError,
-                    content_type: ContentType::Html,
-                    body: read_file_to_bytes("static/index.html").await,
-                    compression: request.is_compression_supported(),
-                };
+                return response.code(HttpCode::InternalServerError);
             }
         };
         let session_id: String = generate_session_id();
@@ -124,64 +93,49 @@ async fn handle_post(request: Request) -> Response {
         {
             Ok(_) => (),
             Err(_) => {
-                return Response {
-                    protocol: Protocol::Http,
-                    code: HttpCode::InternalServerError,
-                    content_type: ContentType::Html,
-                    body: read_file_to_bytes("static/index.html").await,
-                    compression: request.is_compression_supported(),
-                };
+                return response.code(HttpCode::InternalServerError);
             }
         }
 
-        let cookie: String = format!("session={}; httpOnly; Path=/", session_id);
+        response.add_header(
+            String::from("Set-Cookie"),
+            format!("session={}; HttpOnly", session_id),
+        );
 
-        return Response {
-            protocol: Protocol::Http,
-            code: HttpCode::Ok,
-            content_type: ContentType::Html,
-            body: read_file_to_bytes("static/index.html").await,
-            compression: request.is_compression_supported(),
-        };
+        return response;
     }
 
-    return Response {
-        protocol: Protocol::Http,
-        code: HttpCode::MethodNotAllowed,
-        content_type: ContentType::Html,
-        body: read_file_to_bytes("static/index.html").await,
-        compression: request.is_compression_supported(),
-    };
+    return response.code(HttpCode::InternalServerError);
 }
 
 async fn handle_put(request: Request) -> Response {
-    return Response {
-        protocol: Protocol::Http,
-        code: HttpCode::MethodNotAllowed,
-        content_type: ContentType::Html,
-        body: read_file_to_bytes("static/index.html").await,
-        compression: request.is_compression_supported(),
-    };
+    let response = Response::default()
+        .await
+        .compression(request.is_compression_supported())
+        .body(read_file_to_bytes("static/index.html").await)
+        .code(HttpCode::MethodNotAllowed);
+
+    return response;
 }
 
 async fn handle_patch(request: Request) -> Response {
-    return Response {
-        protocol: Protocol::Http,
-        code: HttpCode::MethodNotAllowed,
-        content_type: ContentType::Html,
-        body: read_file_to_bytes("static/index.html").await,
-        compression: false,
-    };
+    let response = Response::default()
+        .await
+        .compression(request.is_compression_supported())
+        .body(read_file_to_bytes("static/index.html").await)
+        .code(HttpCode::MethodNotAllowed);
+
+    return response;
 }
 
 async fn handle_delete(request: Request) -> Response {
-    return Response {
-        protocol: Protocol::Http,
-        code: HttpCode::MethodNotAllowed,
-        content_type: ContentType::Html,
-        body: read_file_to_bytes("static/index.html").await,
-        compression: false,
-    };
+    let response = Response::default()
+        .await
+        .compression(request.is_compression_supported())
+        .body(read_file_to_bytes("static/index.html").await)
+        .code(HttpCode::MethodNotAllowed);
+
+    return response;
 }
 
 async fn insert_user(username: String, password: String, session: String) -> Result<(), ErrorType> {
@@ -230,11 +184,20 @@ fn generate_session_id() -> String {
 async fn verify_cookie(cookie: &str) -> bool {
     if cookie.starts_with("session=") {
         return match fs::read_to_string("/static/users.txt").await {
-            Ok(f) => {
-                f.contains(
-            }
+            Ok(f) => f.contains(cookie.split('=').collect::<Vec<&str>>()[1]),
             Err(_) => false,
-        }
+        };
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api::verify_cookie;
+
+    #[tokio::test]
+    async fn test_verify_cookie() {
+        let cookie: String = String::from("session=sloth101");
+        assert_eq!(verify_cookie(&cookie).await, true);
+    }
 }

@@ -1,9 +1,10 @@
-use crate::ErrorType;
+use crate::{read_file_to_bytes, ErrorType};
 use chrono::{DateTime, Utc};
 use core::str;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fmt::Display;
+use std::fs;
 use std::io::Write;
 
 pub enum Protocol {
@@ -15,6 +16,17 @@ impl Display for Protocol {
         match self {
             Protocol::Http => write!(f, "HTTP/1.1"),
         }
+    }
+}
+
+pub struct Header {
+    pub title: String,
+    pub value: String,
+}
+
+impl Display for Header {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} : {}", self.title, self.value)
     }
 }
 
@@ -40,23 +52,31 @@ pub struct Response {
     pub content_type: ContentType,
     pub body: Vec<u8>,
     pub compression: bool,
+    pub headers: Vec<Header>,
+}
+
+pub trait MyDefault {
+    async fn default() -> Self;
+}
+
+impl MyDefault for Response {
+    async fn default() -> Self {
+        let mut response = Response::new(Protocol::Http, HttpCode::Ok, ContentType::Html, true);
+
+        response.add_body(read_file_to_bytes("static/index.html").await);
+
+        return response;
+    }
 }
 
 impl Response {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn add_header(&mut self, title: String, value: String) {
+        self.headers.push(Header { title, value });
+    }
+
+    pub fn to_bytes(&mut self) -> Vec<u8> {
         // Response line: HTTP/1.1 <status code>
         let response_line: String = format!("{} {}\r\n", self.protocol, self.code);
-
-        // Date Header
-        let now: DateTime<Utc> = Utc::now();
-        let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-
-        let mut headers: Vec<String> = vec![
-            format!("Server: Ferriscuit"),
-            format!("Date: {}", date),
-            format!("Cache-Control: no-cache"),
-            format!("Content-Type: {}", self.content_type),
-        ];
 
         let body: Vec<u8>;
 
@@ -68,9 +88,11 @@ impl Response {
                 .write_all(&self.body)
                 .expect("Failed to write body to gzip encoder");
             body = encoder.finish().expect("Failed to finish gzip compression");
-            headers.push(format!("Content-Encoding: gzip"));
         }
-        headers.push(format!("Content-Length: {}", body.len()));
+
+        self.add_header(String::from("Content-Length"), body.len().to_string());
+
+        let headers: Vec<String> = self.headers.iter().map(|h| h.to_string()).collect();
 
         let mut response = Vec::new();
         response.extend_from_slice(response_line.as_bytes());
@@ -79,6 +101,78 @@ impl Response {
         response.extend_from_slice(&body);
 
         return response;
+    }
+
+    pub fn add_body(&mut self, body: Vec<u8>) {
+        self.body = body;
+    }
+
+    pub fn new(
+        protocol: Protocol,
+        code: HttpCode,
+        content_type: ContentType,
+        compression: bool,
+    ) -> Self {
+        let body = Vec::with_capacity(0);
+
+        // Date Header
+        let now: DateTime<Utc> = Utc::now();
+        let date = now.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+
+        let mut headers: Vec<Header> = vec![
+            Header {
+                title: String::from("Server"),
+                value: String::from("Ferriscuit"),
+            },
+            Header {
+                title: String::from("Date"),
+                value: date,
+            },
+            Header {
+                title: String::from("Cache-Control"),
+                value: String::from("no-cache"),
+            },
+            Header {
+                title: String::from("Content-Type"),
+                value: content_type.to_string(),
+            },
+        ];
+
+        if compression {
+            headers.push(Header {
+                title: String::from("Content-Encoding"),
+                value: String::from("gzip"),
+            });
+        }
+
+        return Response {
+            protocol,
+            code,
+            content_type,
+            body,
+            compression,
+            headers,
+        };
+    }
+
+    pub fn code(mut self, code: HttpCode) -> Self {
+        self.code = code;
+        return self;
+    }
+
+    pub fn content_type(mut self, content_type: ContentType) -> Self {
+        self.content_type = content_type;
+        return self;
+    }
+
+    pub fn body(mut self, body: Vec<u8>) -> Self {
+        self.body = body;
+        return self;
+    }
+
+    pub fn compression(mut self, compression: bool) -> Self {
+        self.compression = compression;
+        return self;
     }
 }
 
