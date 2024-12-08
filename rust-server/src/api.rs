@@ -1,5 +1,7 @@
 use crate::{ContentType, ErrorType, HttpCode, HttpMethod, MyDefault, Request, Response};
-use argon2::Argon2;
+use argon2::password_hash::SaltString;
+use argon2::{password_hash::Salt, Argon2, PasswordHasher, PasswordVerifier};
+use rand::rngs::OsRng;
 use rand::Rng;
 use std::collections::HashMap;
 use std::thread;
@@ -78,6 +80,7 @@ async fn handle_post(request: Request) -> Response {
         let user: HashMap<String, String> = match serde_json::from_str(&request.body) {
             Ok(u) => u,
             Err(_) => {
+                eprintln!("Error parsing json");
                 return response.code(HttpCode::InternalServerError);
             }
         };
@@ -93,6 +96,7 @@ async fn handle_post(request: Request) -> Response {
         {
             Ok(_) => (),
             Err(_) => {
+                eprintln!("Error inserting user");
                 return response.code(HttpCode::InternalServerError);
             }
         }
@@ -139,32 +143,34 @@ async fn handle_delete(request: Request) -> Response {
 }
 
 async fn insert_user(username: String, password: String, session: String) -> Result<(), ErrorType> {
-    let password = password.into_bytes();
-    let mut hashed_password: Vec<u8> = Vec::new();
-    match Argon2::default().hash_password_into(&password, b"", &mut hashed_password) {
-        Ok(_) => (),
-        Err(_) => {
+    let password = password.as_bytes();
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = match argon2.hash_password(&password, salt.as_salt()) {
+        Ok(hash) => hash,
+        Err(e) => {
+            eprintln!("Error hashing password: {:?} ", e);
             return Err(ErrorType::InternalServerError(String::from(
                 "Problem occured when creating password",
             )));
         }
-    }
+    };
 
     let mut file_input: Vec<u8> = username.into_bytes();
-    file_input.push(b"|"[0]);
-    file_input.append(&mut hashed_password);
-    file_input.push(b"|"[0]);
-    file_input.append(&mut session.into_bytes());
-
+    file_input.push(b'|');
+    file_input.extend_from_slice(hash.to_string().as_bytes());
+    file_input.push(b'|');
+    file_input.extend_from_slice(session.as_bytes());
     let mut file = OpenOptions::new()
         .append(true)
-        .open("/static/users.txt")
+        .open("static/users.txt")
         .await
         .expect("cannot open file");
 
     match file.write(&file_input).await {
         Ok(_) => (),
         Err(_) => {
+            eprintln!("Error writing to file");
             return Err(ErrorType::InternalServerError(String::from(
                 "Problem occured when writing user to db",
             )));
@@ -186,7 +192,6 @@ async fn verify_cookie(cookie: &str) -> bool {
         return match fs::read_to_string("static/users.txt").await {
             Ok(f) => {
                 let cookie_value: &str = cookie.split('=').collect::<Vec<&str>>()[1];
-                println!("Cookie value: {}", cookie_value);
                 f.contains(cookie_value)
             }
             Err(_) => false,
@@ -197,12 +202,34 @@ async fn verify_cookie(cookie: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::api::verify_cookie;
+    use serde_json::json;
+
+    use crate::api::{handle_post, verify_cookie};
+    use crate::{HttpCode, HttpMethod, Request, Response};
 
     #[tokio::test]
     async fn test_verify_cookie() {
         let cookie: String = String::from("session=sloth101");
         let res = verify_cookie(&cookie).await;
         assert_eq!(res, true);
+    }
+
+    #[tokio::test]
+    async fn test_signup() {
+        let request_body = json!({
+            "username": "hayley",
+            "password": "password"
+        })
+        .to_string();
+
+        let request = Request {
+            headers: Vec::new(),
+            body: request_body,
+            method: HttpMethod::POST,
+            uri: "/signup".to_string(),
+        };
+
+        let response: Response = handle_post(request).await;
+        assert_eq!(response.code, HttpCode::Ok);
     }
 }
