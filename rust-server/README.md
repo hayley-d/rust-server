@@ -6,8 +6,41 @@ This project is an asynchronous TCP server written in Rust using the Tokio runti
 ## Features
 - **Asynchronous Connection Handling**: Efficiently handles multiple client connections concurrently using `tokio::spawn`.
 - **Graceful Shutdown**: Supports stopping the server cleanly with `CTRL+C` using signal handling.
-- **Error Logging**: Logs errors to a `server.log` file for persistent monitoring and debugging.
 - **Dynamic Port Configuration**: Accepts a custom port via command-line arguments or defaults to port `7878`.
+- **Custom Error Handling**: The `ErrorType` enum defines different error types such as socket errors, read/write errors, bad requests, and more.
+- **Error Logging**: The `Logger` struct provides functionality to log errors to a file, making it easy to trace issues in production environments.
+- **Asynchronous Networking**: Uses `socket2` for advanced socket operations and integrates with Tokio for non-blocking TCP listening.
+
+
+## API Feautures
+### HTTP Method Support
+- **GET**: Handles file-serving for static pages like HTML, with optional support for compressed responses based on client capabilities.
+- **POST**: Manages user authentication (signup and login). Passwords are hashed with Argon2, and session cookies are used for login persistence.
+- **PUT & PATCH**: Return `405 Method Not Allowed` status, as these methods are not currently implemented.
+- **DELETE**: Allows users to delete files, verifying their authentication via session cookies.
+
+### User Authentification
+- **User Signup**: Users can sign up by providing a username and password. Passwords are securely hashed with Argon2 before being stored.
+- **User Login**: Authenticated using the provided username and password, which are validated against stored hashes.
+- **Session Cookies**: Upon successful login, a session cookie is set, maintaining user sessions across requests. The session cookie is verified before sensitive actions like file deletion.
+
+### File Handling
+- **Asynchronous File I/O**: All file-related operations (reading, writing, deleting) are done asynchronously using `tokio::fs` to improve performance without blocking threads.
+- **Static File Serving**: The server serves static HTML files like `index.html` and `home.html` based on the request URI.
+- **File Deletion**: Users can delete files (if authenticated) using the DELETE method, and the server ensures the file exists before attempting deletion.
+
+### Error Handling & Logging
+- Errors are captured with detailed messages, and appropriate HTTP status codes are returned. For example, invalid JSON payloads in POST requests result in a `400 Bad Request`.
+- **Logger**: A custom logger captures errors and events, allowing traceable logs of server activities and errors, using a thread-safe `Mutex` to allow concurrent access.
+
+### Compression Support
+- The server automatically detects whether the client supports compression (e.g., gzip) and compresses the response body when necessary, enhancing performance for large responses.
+
+### Security
+- **Argon2 Password Hashing**: Argon2 is used to hash and verify user passwords, ensuring that passwords are securely stored and not kept in plain text.
+- **Session Security**: Session cookies are `HttpOnly`, preventing JavaScript from accessing them, and preventing Cross-Site Scripting (XSS) attacks.
+- **Input Validation**: All incoming data (such as JSON payloads) is validated before being processed, preventing malicious inputs.
+
 
 
 

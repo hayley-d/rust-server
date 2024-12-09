@@ -12,6 +12,16 @@ use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
+/// Reads the contents of a file asynchronously and returns its data as bytes.
+///
+/// # Arguments
+/// - `path`: A string slice representing the file path.
+///
+/// # Returns
+/// A `Vec<u8>` containing the file's contents.
+///
+/// # Panics
+/// Panics if the file cannot be accessed, or if the read operation fails.
 pub async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     let metadata = fs::metadata(path).await.unwrap();
     let mut file = File::open(path).await.unwrap();
@@ -20,6 +30,15 @@ pub async fn read_file_to_bytes(path: &str) -> Vec<u8> {
     return buffer;
 }
 
+/// Handles incoming HTTP requests by delegating to specific handlers
+/// based on the HTTP method.
+///
+/// # Arguments
+/// - `request`: The HTTP request to be processed.
+/// - `logger`: A thread-safe `Logger` instance for recording log entries.
+///
+/// # Returns
+/// A `Response` that corresponds to the processed request.
 pub async fn handle_response(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     match request.method {
         HttpMethod::GET => handle_get(request, logger).await,
@@ -30,6 +49,15 @@ pub async fn handle_response(request: Request, logger: Arc<Mutex<Logger>>) -> Re
     }
 }
 
+/// Processes HTTP GET requests and returns an appropriate response.
+///
+/// # Arguments
+/// - `request`: The HTTP GET request to process.
+/// - `logger`: A shared logger instance to track activity.
+///
+/// # Returns
+/// A `Response` specific to the GET request, such as HTML content
+/// or an error response if applicable.
 async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     if request.headers.contains(&String::from("Brew")) || request.uri == "/coffee" {
         let response = Response::default()
@@ -72,6 +100,16 @@ async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     return response;
 }
 
+/// Handles HTTP POST requests for various operations, such as user
+/// signup and login.
+///
+/// # Arguments
+/// - `request`: The HTTP POST request containing the payload.
+/// - `logger`: A thread-safe logger to capture logs during processing.
+///
+/// # Returns
+/// A `Response` corresponding to the POST request, with outcomes like
+/// successful account creation, login confirmation, or error handling.
 async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     let mut response = Response::default()
         .await
@@ -212,6 +250,15 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
         .code(HttpCode::BadRequest);
 }
 
+/// Handles HTTP PUT requests. Currently, it responds with a `MethodNotAllowed`
+/// HTTP status code, as this method is not implemented.
+///
+/// # Arguments
+/// - `request`: The HTTP PUT request to process.
+/// - `logger`: A shared logger instance for recording log entries.
+///
+/// # Returns
+/// A `Response` with a `MethodNotAllowed` status.
 async fn handle_put(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     let response = Response::default()
         .await
@@ -222,6 +269,15 @@ async fn handle_put(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     return response;
 }
 
+/// Handles HTTP PATCH requests. Currently, it responds with a `MethodNotAllowed`
+/// HTTP status code, as this method is not implemented.
+///
+/// # Arguments
+/// - `request`: The HTTP PATCH request to process.
+/// - `logger`: A shared logger instance for recording log entries.
+///
+/// # Returns
+/// A `Response` with a `MethodNotAllowed` status.
 async fn handle_patch(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     let response = Response::default()
         .await
@@ -232,6 +288,15 @@ async fn handle_patch(request: Request, logger: Arc<Mutex<Logger>>) -> Response 
     return response;
 }
 
+/// Processes HTTP DELETE requests to remove specified files if the user
+/// is authenticated via a valid session cookie.
+///
+/// # Arguments
+/// - `request`: The HTTP DELETE request, containing the file information and session.
+/// - `logger`: A thread-safe logger to track errors and actions.
+///
+/// # Returns
+/// A `Response` indicating success or failure of the file deletion process.
 async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     let response = Response::default()
         .await
@@ -313,6 +378,19 @@ async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response
         .code(HttpCode::BadRequest);
 }
 
+/// Inserts a user into the database.
+///
+/// Hashes the user's password using Argon2, then appends the user's details
+/// (username, hashed password, session ID) to the `users.txt` file.
+///
+/// # Arguments
+/// - `username`: The username of the new user.
+/// - `password`: The password of the new user.
+/// - `session`: A unique session ID for the user.
+///
+/// # Returns
+/// - `Ok(())` if the operation is successful.
+/// - `Err(ErrorType)` if an error occurs.
 async fn insert_user(username: String, password: String, session: String) -> Result<(), ErrorType> {
     let password = password.as_bytes();
     let salt = SaltString::generate(&mut OsRng);
@@ -349,6 +427,18 @@ async fn insert_user(username: String, password: String, session: String) -> Res
     Ok(())
 }
 
+/// Validates a password against a hashed password.
+///
+/// Uses Argon2 to verify if the provided password matches the stored hash.
+///
+/// # Arguments
+/// - `password`: The plaintext password provided by the user.
+/// - `hashed_password`: The stored hashed password.
+///
+/// # Returns
+/// - `Ok(true)` if the password matches the hash.
+/// - `Ok(false)` if the password does not match the hash.
+/// - `Err(ErrorType)` if a validation error occurs.
 fn validate_password(password: &str, hashed_password: &str) -> Result<bool, ErrorType> {
     let argon2 = Argon2::default();
 
@@ -368,6 +458,10 @@ fn validate_password(password: &str, hashed_password: &str) -> Result<bool, Erro
     }
 }
 
+/// Generates a random session ID.
+///
+/// # Returns
+/// - A `String` representing the session ID.
 fn generate_session_id() -> String {
     let mut rng = rand::thread_rng();
     (0..32)
@@ -375,6 +469,16 @@ fn generate_session_id() -> String {
         .collect()
 }
 
+/// Verifies the session cookie.
+///
+/// Reads the `users.txt` file to check if the provided session cookie matches an active session.
+///
+/// # Arguments
+/// - `cookie`: The session cookie to verify.
+///
+/// # Returns
+/// - `true` if the session is valid.
+/// - `false` otherwise.
 async fn verify_cookie(cookie: &str) -> bool {
     if cookie.starts_with("session=") {
         return match fs::read_to_string("static/users.txt").await {
