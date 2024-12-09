@@ -6,6 +6,7 @@ use flate2::Compression;
 use std::fmt::Display;
 use std::io::Write;
 
+#[derive(Debug)]
 pub enum Protocol {
     Http,
 }
@@ -18,6 +19,7 @@ impl Display for Protocol {
     }
 }
 
+#[derive(Debug)]
 pub struct Header {
     pub title: String,
     pub value: String,
@@ -29,6 +31,7 @@ impl Display for Header {
     }
 }
 
+#[derive(Debug)]
 pub enum ContentType {
     Text,
     Html,
@@ -45,6 +48,7 @@ impl Display for ContentType {
     }
 }
 
+#[derive(Debug)]
 pub struct Response {
     pub protocol: Protocol,
     pub code: HttpCode,
@@ -88,11 +92,18 @@ impl Response {
                 .write_all(&self.body)
                 .expect("Failed to write body to gzip encoder");
             body = encoder.finish().expect("Failed to finish gzip compression");
+            //self.add_header(String::from("Content-Encoding"), String::from("gzip"));
         }
 
         self.add_header(String::from("Content-Length"), body.len().to_string());
 
-        let headers: Vec<String> = self.headers.iter().map(|h| h.to_string()).collect();
+        let mut headers: Vec<String> = Vec::new();
+
+        for header in &self.headers {
+            headers.push(header.to_string());
+        }
+
+        println!("{:?}", headers);
 
         let mut response = Vec::new();
         response.extend_from_slice(response_line.as_bytes());
@@ -172,6 +183,26 @@ impl Response {
 
     pub fn compression(mut self, compression: bool) -> Self {
         self.compression = compression;
+        // add header
+        if compression {
+            for header in &self.headers {
+                if header.title == "Content-Encoding" {
+                    return self;
+                }
+            }
+            self.add_header(String::from("Content-Encoding"), String::from("gzip"));
+        } else {
+            let mut index: isize = -1;
+            for (i, _) in self.headers.iter().enumerate() {
+                if &self.headers[i].title == "Content-Encoding" {
+                    index = i as isize;
+                }
+            }
+
+            if index > 0 {
+                self.headers.remove(index as usize);
+            }
+        }
         return self;
     }
 }
@@ -231,14 +262,14 @@ impl Request {
             let header = header.to_lowercase();
 
             if header.contains("accept-encoding") {
-                if header.to_lowercase().contains(',') {
+                if header.contains(',') {
                     // multiple compression types
                     let mut encodings: Vec<&str> =
-                        header.split(',').map(|m| m.trim()).collect::<Vec<&str>>();
+                        header.split(", ").map(|m| m.trim()).collect::<Vec<&str>>();
                     encodings[0] = &encodings[0].split_whitespace().collect::<Vec<&str>>()[1];
 
                     for encoding in encodings {
-                        if encoding == "gzip" {
+                        if encoding == "gzip" || encoding.contains("gzip") {
                             return true;
                         }
                     }

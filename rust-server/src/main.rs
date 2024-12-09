@@ -1,7 +1,7 @@
-use rust_server::connection::connections::*;
-use rust_server::error::my_errors::*;
-use rust_server::request_validation::handle_request;
-use rust_server::{handle_response, my_socket::*, request::*, shutdown::*};
+use practical_1::connection::connections::*;
+use practical_1::error::my_errors::*;
+use practical_1::request_validation::handle_request;
+use practical_1::{handle_response, my_socket::*, request::*, shutdown::*};
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -130,7 +130,10 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                 };
 
                 let request: Request = match Request::new(&buffer[..bytes_read]) {
-                    Ok(r) => r,
+                    Ok(r) => {
+                        println!("Request successfully created!");
+                        r
+                    }
                     Err(e) => {
                         logger.lock().await.log_error(&e);
                         break;
