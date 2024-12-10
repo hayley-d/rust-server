@@ -219,6 +219,8 @@ impl Request {
         // unwrap is safe as request has been parsed for any issues before this is called
         let request = String::from_utf8(buffer.to_vec()).unwrap();
 
+        println!("{}\r\n", request);
+
         // split the request by line
         let request: Vec<&str> = request.lines().collect();
 
@@ -260,6 +262,10 @@ impl Request {
     pub fn is_compression_supported(&self) -> bool {
         for header in &self.headers {
             let header = header.to_lowercase();
+
+            if header.contains("firefox") {
+                return false;
+            }
 
             if header.contains("accept-encoding") {
                 if header.contains(',') {

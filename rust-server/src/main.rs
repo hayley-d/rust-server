@@ -131,7 +131,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
 
                 let request: Request = match Request::new(&buffer[..bytes_read]) {
                     Ok(r) => {
-                        println!("Request successfully created!");
+                        //println!("Request successfully created!");
                         r
                     }
                     Err(e) => {
