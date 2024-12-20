@@ -1,3 +1,4 @@
+use colored::Colorize;
 use rust_server::connection::connections::*;
 use rust_server::error::my_errors::*;
 use rust_server::request_validation::handle_request;
@@ -34,7 +35,12 @@ async fn main() -> Result<(), ErrorType> {
         Ok(s) => s,
         Err(e) => {
             logger.log_error(&e);
-            panic!("Error creating socket, refer to the server log");
+            panic!(
+                "{}",
+                "Error creating socket, refer to the server log"
+                    .red()
+                    .bold()
+            );
         }
     };
 
@@ -43,7 +49,12 @@ async fn main() -> Result<(), ErrorType> {
         Ok(s) => s,
         Err(e) => {
             logger.log_error(&e);
-            panic!("Error creating listener, refer to the server log");
+            panic!(
+                "{}",
+                "Error creating listener, refer to the server log"
+                    .red()
+                    .bold()
+            );
         }
     };
 
@@ -63,10 +74,10 @@ async fn main() -> Result<(), ErrorType> {
 
     tokio::select! {
         _ = run_server(listener,logger) => {
-            println!("Server has stopped.");
+            println!("{}","Server has stopped.".white().bold());
         }
         _ = shutdown_signal => {
-            println!("Shutdown signal received. Stopping server...");
+            println!("{}","Shutdown signal received.\nStarting graceful shutdown...".cyan().bold());
             shutdown.initiate_shutdown().await;
         }
     }
