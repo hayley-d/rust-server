@@ -1,5 +1,6 @@
 use crate::{read_file_to_bytes, ErrorType};
 use chrono::{DateTime, Utc};
+use colored::Colorize;
 use core::str;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -215,6 +216,11 @@ pub struct Request {
 }
 
 impl Request {
+    pub fn print(&self) {
+        println!("{} New Request:", ">>".red().bold());
+        println!("{}{}", self.method.to_string().magenta(), self.uri.cyan());
+    }
+
     pub fn new(buffer: &[u8]) -> Result<Request, ErrorType> {
         // unwrap is safe as request has been parsed for any issues before this is called
         let request = String::from_utf8(buffer.to_vec()).unwrap();

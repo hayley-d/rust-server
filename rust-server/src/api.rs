@@ -2,6 +2,7 @@ use crate::{ContentType, ErrorType, HttpCode, HttpMethod, Logger, MyDefault, Req
 use argon2::password_hash::SaltString;
 use argon2::PasswordHash;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
+use colored::Colorize;
 use rand::rngs::OsRng;
 use rand::Rng;
 use std::collections::HashMap;
@@ -95,7 +96,18 @@ async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     } else if request.uri == "/home" {
         response.add_body(read_file_to_bytes("static/home.html").await);
     } else {
-        response.add_body(read_file_to_bytes("static/index.html").await);
+        // Error
+        println!(
+            "{} {} {} {}",
+            ">>".red().bold(),
+            "No matching routes for".red(),
+            request.method.to_string().magenta(),
+            request.uri.cyan()
+        );
+        return response
+            .body(String::from("404: Invalid route").into())
+            .content_type(ContentType::Text)
+            .code(HttpCode::BadRequest);
     }
     return response;
 }
@@ -124,6 +136,13 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
             Err(_) => {
                 let error = ErrorType::BadRequest(String::from("Invalid JSON request."));
                 logger.lock().await.log_error(&error);
+                println!(
+                    "{} {} {} {}",
+                    ">>".red().bold(),
+                    "Invalid JSON for".red(),
+                    request.method.to_string().magenta(),
+                    request.uri.cyan()
+                );
                 return response
                     .body(String::from("Invalid JSON.").into())
                     .code(HttpCode::BadRequest);
@@ -145,6 +164,13 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
                     "Problem when attempting to insert new user.",
                 ));
                 logger.lock().await.log_error(&error);
+                println!(
+                    "{} {} {} {}",
+                    ">>".red().bold(),
+                    "Error while creating new user ".red(),
+                    request.method.to_string().magenta(),
+                    request.uri.cyan()
+                );
                 return response
                     .body(String::from("Problem occured when attempting to add new user.").into())
                     .code(HttpCode::InternalServerError);
@@ -165,6 +191,13 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
             Err(_) => {
                 let error = ErrorType::BadRequest(String::from("Invalid JSON request."));
                 logger.lock().await.log_error(&error);
+                println!(
+                    "{} {} {} {}",
+                    ">>".red().bold(),
+                    "Invaid JSON for".red(),
+                    request.method.to_string().magenta(),
+                    request.uri.cyan()
+                );
                 return response
                     .body(String::from("Invalid JSON.").into())
                     .code(HttpCode::BadRequest)
@@ -189,6 +222,13 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
                     "Attempt to login to a user account that does not exist",
                 ));
                 logger.lock().await.log_error(&error);
+                println!(
+                    "{} {} {} {}",
+                    ">>".red().bold(),
+                    "User not found for".red(),
+                    request.method.to_string().magenta(),
+                    request.uri.cyan()
+                );
                 return response
                     .body(String::from("No user exists with the provided details.").into())
                     .code(HttpCode::BadRequest)
@@ -216,6 +256,12 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
                         "Attempt to login with incorrect password.",
                     ));
                     logger.lock().await.log_error(&error);
+                    println!(
+                        "{} {} {}",
+                        ">>".red().bold(),
+                        "Attempt to login with incorrect password for".red(),
+                        input_username.cyan()
+                    );
                     return response
                         .body(String::from("Incorrect Password.").into())
                         .code(HttpCode::BadRequest);

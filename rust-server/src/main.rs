@@ -145,7 +145,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
 
                 let request: Request = match Request::new(&buffer[..bytes_read]) {
                     Ok(r) => {
-                        //println!("Request successfully created!");
+                        r.print();
                         r
                     }
                     Err(e) => {
@@ -153,8 +153,6 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                         break;
                     }
                 };
-
-                //let mut response = handle_response(request).await;
 
                 let mut response = handle_response(request, Arc::clone(&logger)).await;
 
