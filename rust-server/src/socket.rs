@@ -69,7 +69,7 @@ pub mod my_socket {
             }
         };
 
-        println!("Listening on [::1]:{port}...");
+        //println!("Listening on [::1]:{port}...");
 
         return Ok(socket);
     }

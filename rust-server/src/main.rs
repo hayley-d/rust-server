@@ -72,12 +72,15 @@ async fn main() -> Result<(), ErrorType> {
         shutdown_tx: Arc::clone(&tx),
     };
 
+    print_server_info(port);
+
     tokio::select! {
         _ = run_server(listener,logger) => {
-            println!("{}","Server has stopped.".white().bold());
+            println!("{}","Gracefull shutdown completed successfully.".cyan());
         }
         _ = shutdown_signal => {
-            println!("{}","Shutdown signal received.\nStarting graceful shutdown...".cyan().bold());
+            println!("{}{}","WARNING:".yellow().bold()," SIGINT received: Requesting shutdown..".yellow());
+            println!("{}","Shutdown requested.\nWaiting for pending I/O...".cyan());
             shutdown.initiate_shutdown().await;
         }
     }
@@ -180,4 +183,41 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
             drop(permit);
         });
     }
+}
+
+fn print_server_info(port: u16) {
+    println!("{}", "Server started:".cyan());
+    println!(
+        "{}{}{}",
+        ">> ".red().bold(),
+        "address: ".cyan(),
+        "127.0.0.1".red().bold()
+    );
+
+    println!(
+        "{}{}{}",
+        ">> ".red().bold(),
+        "port: ".cyan(),
+        port.to_string().red().bold()
+    );
+
+    println!(
+        "{}{}{}",
+        ">> ".red().bold(),
+        "HTTP/1.1: ".cyan(),
+        "true".red().bold()
+    );
+
+    println!(
+        "{}{}{}",
+        ">> ".red().bold(),
+        "shutdown: ".cyan(),
+        "ctrl C".red().bold()
+    );
+
+    println!(
+        "{}{}\n",
+        "Server has launched from http://127.0.0.1:".red().bold(),
+        port.to_string().red().bold()
+    );
 }
