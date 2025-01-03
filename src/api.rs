@@ -517,6 +517,7 @@ fn validate_password(password: &str, hashed_password: &str) -> Result<bool, Erro
 
     // Parse the hashed password
     let parsed_hash = PasswordHash::new(hashed_password).map_err(|_| {
+        error!("Failed to validated hashed password");
         ErrorType::InternalServerError(String::from(
             "Problem occurred when validating the password",
         ))
@@ -526,6 +527,7 @@ fn validate_password(password: &str, hashed_password: &str) -> Result<bool, Erro
     match argon2.verify_password(password.as_bytes(), &parsed_hash) {
         Ok(_) => Ok(true),
         Err(_) => {
+            error!("Login attempt failed due to incorrect password");
             return Err(ErrorType::BadRequest(String::from("Incorrect Password")));
         }
     }
