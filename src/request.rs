@@ -4,6 +4,7 @@ use colored::Colorize;
 use core::str;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use log::error;
 use std::fmt::Display;
 use std::io::Write;
 
@@ -231,6 +232,7 @@ impl Request {
         let request: Vec<&str> = request.lines().collect();
 
         if request.len() < 3 {
+            error!("Recieved invalid request");
             return Err(ErrorType::ConnectionError(String::from("Invalid request")));
         }
 
