@@ -83,10 +83,10 @@ async fn main() -> Result<(), ErrorType> {
             println!("{}","Gracefull shutdown completed successfully.".cyan());
         }
         _ = shutdown_signal => {
-                info!("Server shutdown initiated");
+            info!("Server shutdown initiated");
             println!("{}{}","WARNING:".yellow().bold()," SIGINT received: Requesting shutdown..".yellow());
             println!("{}","Shutdown requested.\nWaiting for pending I/O...".cyan());
-                info!("Server shutdown successful");
+            info!("Server shutdown successful");
             shutdown.initiate_shutdown().await;
         }
     }
@@ -111,9 +111,10 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
         let (client, addr): (TcpStream, SocketAddr) = match listener.accept().await {
             Ok((c, a)) => (c, a.into()),
             Err(_) => {
+                error!("Failed to connect to the client");
                 return Err(ErrorType::SocketError(String::from(
                     "Error connecting to client",
-                )))
+                )));
             }
         };
 
@@ -135,6 +136,7 @@ async fn run_server(mut listener: Listener, logger: Logger) -> Result<(), ErrorT
                         Ok(Err(_)) => {
                             let e =
                                 ErrorType::SocketError(String::from("Error connecting to client"));
+                            error!("Failed to connect to client");
                             logger.lock().await.log_error(&e);
                             break;
                         }
