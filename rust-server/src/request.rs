@@ -142,7 +142,7 @@ impl Response {
             },
             Header {
                 title: String::from("Cache-Control"),
-                value: String::from("no-cache"),
+                value: String::from("no-store"),
             },
             Header {
                 title: String::from("Content-Type"),
