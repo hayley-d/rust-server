@@ -89,14 +89,14 @@ async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 
     if request.uri == "/" {
         // Add Response Body
-        info!("GET / from");
+        info!("GET / from status 200");
         response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/hayley" {
         thread::sleep(Duration::from_secs(5));
-        info!("GET /hayley");
+        info!("GET /hayley status 200");
         response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/home" {
-        info!("GET /home");
+        info!("GET /home status: 200");
         response.add_body(read_file_to_bytes("static/home.html").await);
     } else {
         // Error
