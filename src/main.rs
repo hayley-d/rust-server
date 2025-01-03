@@ -1,4 +1,5 @@
 use colored::Colorize;
+use log::{error, info};
 use rust_server::connection::connections::*;
 use rust_server::error::my_errors::*;
 use rust_server::request_validation::handle_request;
@@ -25,6 +26,7 @@ async fn main() -> Result<(), ErrorType> {
     {
         Ok(p) => p,
         Err(_) => {
+            error!("Failed to parse port number");
             let error = ErrorType::SocketError(String::from("Problem parsing port"));
             logger.log_error(&error);
             DEFAULT_PORT
@@ -34,6 +36,7 @@ async fn main() -> Result<(), ErrorType> {
     let socket = match create_socket(port) {
         Ok(s) => s,
         Err(e) => {
+            error!("Failed to create socket");
             logger.log_error(&e);
             panic!(
                 "{}",
@@ -48,6 +51,7 @@ async fn main() -> Result<(), ErrorType> {
     let listener = match get_listener(socket) {
         Ok(s) => s,
         Err(e) => {
+            error("Failed to create TCP listener");
             logger.log_error(&e);
             panic!(
                 "{}",
@@ -79,8 +83,10 @@ async fn main() -> Result<(), ErrorType> {
             println!("{}","Gracefull shutdown completed successfully.".cyan());
         }
         _ = shutdown_signal => {
+                info!("Server shutdown initiated");
             println!("{}{}","WARNING:".yellow().bold()," SIGINT received: Requesting shutdown..".yellow());
             println!("{}","Shutdown requested.\nWaiting for pending I/O...".cyan());
+                info!("Server shutdown successful");
             shutdown.initiate_shutdown().await;
         }
     }
