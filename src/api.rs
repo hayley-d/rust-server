@@ -101,6 +101,7 @@ async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
     } else {
         // Error
         error!("Failed to serve request GET {}", request.uri);
+        info!("GET {} status: 404", request.uri);
         println!(
             "{} {} {} {}",
             ">>".red().bold(),
@@ -135,9 +136,11 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 
     if request.uri == "/signup" {
         // parse the JSON into a hashmap
+        info!("POST /signup from");
         let user: HashMap<String, String> = match serde_json::from_str(&request.body) {
             Ok(u) => u,
             Err(_) => {
+                error!("Failed to parse JSON in request from");
                 let error = ErrorType::BadRequest(String::from("Invalid JSON request."));
                 logger.lock().await.log_error(&error);
                 println!(
@@ -164,6 +167,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
         {
             Ok(_) => (),
             Err(_) => {
+                error!("Failed to insert user into the database");
                 let error = ErrorType::InternalServerError(String::from(
                     "Problem when attempting to insert new user.",
                 ));
@@ -190,9 +194,12 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
             .body(String::from("New user successfully created!").into())
             .code(HttpCode::Ok);
     } else if request.uri == "/login" {
+        info!("POST /login from ");
         let user: HashMap<String, String> = match serde_json::from_str(&request.body) {
             Ok(u) => u,
             Err(_) => {
+                error!("Failed to parse JSON");
+                info!("POST /login status 404");
                 let error = ErrorType::BadRequest(String::from("Invalid JSON request."));
                 logger.lock().await.log_error(&error);
                 println!(
