@@ -229,6 +229,10 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
         {
             Some(l) => l.to_string(),
             None => {
+                error!(
+                    "Failed to find user account with username {}",
+                    input_username
+                );
                 let error = ErrorType::BadRequest(String::from(
                     "Attempt to login to a user account that does not exist",
                 ));
@@ -250,6 +254,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
         let user_values: Vec<&str> = user_values.split('|').collect();
 
         if user_values.len() != 3 {
+            error!("Failed to find user account from IP address");
             let error = ErrorType::BadRequest(String::from(
                 "Attempt to login to a user account that does not exist",
             ));
@@ -263,6 +268,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
             match validate_password(input_password, user_values[1]) {
                 Ok(v) if v == true => (),
                 Ok(_) => {
+                    error!("Failed to login user with incorrect password");
                     let error = ErrorType::BadRequest(String::from(
                         "Attempt to login with incorrect password.",
                     ));
@@ -278,6 +284,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
                         .code(HttpCode::BadRequest);
                 }
                 Err(_) => {
+                    error!("Failed to validate password");
                     let error = ErrorType::InternalServerError(String::from(
                         "Problem when validating password.",
                     ));
@@ -300,6 +307,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 
         //}
     }
+    error!("Failed to parse invalid POST request");
     let error = ErrorType::BadRequest(String::from("Invalid post request."));
     logger.lock().await.log_error(&error);
     return response
@@ -317,6 +325,7 @@ async fn handle_post(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 /// # Returns
 /// A `Response` with a `MethodNotAllowed` status.
 async fn handle_put(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
+    info!("PUT {} status 404", request.uri);
     let response = Response::default()
         .await
         .compression(request.is_compression_supported())
@@ -336,6 +345,7 @@ async fn handle_put(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 /// # Returns
 /// A `Response` with a `MethodNotAllowed` status.
 async fn handle_patch(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
+    info!("PATCH {} status 404", request.uri);
     let response = Response::default()
         .await
         .compression(request.is_compression_supported())
@@ -365,6 +375,7 @@ async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response
     let file: HashMap<String, String> = match serde_json::from_str(&request.body) {
         Ok(u) => u,
         Err(_) => {
+            error!("Failed to parse invalid JSON");
             let error = ErrorType::BadRequest(String::from("Invalid JSON request."));
             logger.lock().await.log_error(&error);
             return response
@@ -384,6 +395,7 @@ async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response
     let cookie_header = match cookie_header.get(0) {
         Some(h) => h,
         None => {
+            error!("Attempt to delete without proper authentification from IP address");
             let error = ErrorType::BadRequest(String::from(
                 "Attempt to delete without proper authentification.",
             ));
@@ -399,6 +411,7 @@ async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response
     let cookie_value: &str = match header_parts.get(1) {
         Some(v) => v,
         None => {
+            error!("Attempt to delete without proper authentification from IP address");
             let error = ErrorType::BadRequest(String::from(
                 "Attempt to delete without proper authentification.",
             ));
@@ -419,6 +432,7 @@ async fn handle_delete(request: Request, logger: Arc<Mutex<Logger>>) -> Response
                     .code(HttpCode::Ok);
             }
             Err(_) => {
+                error!("Failed to delete file that does not exist");
                 let error = ErrorType::BadRequest(String::from(
                     "Attempt to remove file that does not exist",
                 ));
@@ -455,6 +469,7 @@ async fn insert_user(username: String, password: String, session: String) -> Res
     let hash = match argon2.hash_password(&password, salt.as_salt()) {
         Ok(hash) => hash,
         Err(_) => {
+            error!("Failed to create new user");
             return Err(ErrorType::InternalServerError(String::from(
                 "Problem occured when creating password",
             )));
@@ -475,6 +490,7 @@ async fn insert_user(username: String, password: String, session: String) -> Res
     match file.write(&file_input).await {
         Ok(_) => (),
         Err(_) => {
+            error!("Failed to write to database");
             return Err(ErrorType::InternalServerError(String::from(
                 "Problem occured when writing user to db",
             )));
