@@ -3,7 +3,7 @@ use argon2::password_hash::SaltString;
 use argon2::PasswordHash;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use colored::Colorize;
-use log::info;
+use log::{error, info};
 use rand::rngs::OsRng;
 use rand::Rng;
 use std::collections::HashMap;
@@ -89,16 +89,18 @@ async fn handle_get(request: Request, logger: Arc<Mutex<Logger>>) -> Response {
 
     if request.uri == "/" {
         // Add Response Body
-        info!("GET / from {}");
+        info!("GET / from");
         response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/hayley" {
         thread::sleep(Duration::from_secs(5));
-
+        info!("GET /hayley");
         response.add_body(read_file_to_bytes("static/index.html").await);
     } else if request.uri == "/home" {
+        info!("GET /home");
         response.add_body(read_file_to_bytes("static/home.html").await);
     } else {
         // Error
+        error!("Failed to serve request GET {}", request.uri);
         println!(
             "{} {} {} {}",
             ">>".red().bold(),
